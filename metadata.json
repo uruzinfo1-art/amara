@@ -1,0 +1,8 @@
+{
+  "name": "AMARA - PRE ONBOARDING",
+  "description": "Aplicación web moderna y minimalista de finanzas personales para registrar ingresos, gastos y visualizar balances de forma elegante.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

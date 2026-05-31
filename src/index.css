@@ -1,0 +1,437 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-border: var(--border);
+  
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: #F5F7FA;
+    --foreground: #111827;
+    --card: #ffffff;
+    --card-foreground: #111827;
+    --primary: #00c853;
+    --primary-foreground: #ffffff;
+    --muted: #F3F4F6;
+    --muted-foreground: #4B5563;
+    --accent: #E5E7EB;
+    --border: #E5E7EB;
+  }
+
+  .dark {
+    --background: #05070A;
+    --foreground: #FFFFFF;
+    --card: #0B0F14;
+    --card-foreground: #FFFFFF;
+    --primary: #00e676;
+    --primary-foreground: #000000;
+    --muted: #0D121B;
+    --muted-foreground: #A1A1AA;
+    --accent: #111827;
+    --border: rgba(0, 255, 150, 0.08);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+/* ==================================================
+   LIGHT MODE OVERRIDES (Apple / Notion / Revolut style)
+   ================================================== */
+
+html:not(.dark) {
+  background-color: #F5F7FA !important;
+}
+
+html:not(.dark) body {
+  background-color: #F5F7FA !important;
+  color: #111827 !important;
+}
+
+/* Títulos principales: #111827, Subtítulos: #4B5563, Texto secundario: #6B7280 */
+html:not(.dark) h1,
+html:not(.dark) h2,
+html:not(.dark) h3,
+html:not(.dark) h4,
+html:not(.dark) .text-xl,
+html:not(.dark) .text-2xl,
+html:not(.dark) .text-3xl,
+html:not(.dark) .text-4xl,
+html:not(.dark) .text-5xl {
+  color: #111827 !important;
+}
+
+/* Reset gradients and clip behavior to solid dark text in light mode */
+html:not(.dark) .bg-clip-text.text-transparent {
+  background: none !important;
+  background-clip: unset !important;
+  -webkit-background-clip: unset !important;
+  -webkit-text-fill-color: #111827 !important;
+  color: #111827 !important;
+}
+
+html:not(.dark) [class*="bg-clip-text"] {
+  background-clip: border-box !important;
+  -webkit-background-clip: border-box !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+/* Deficit contrast overrides in light mode */
+html:not(.dark) .from-rose-400.to-rose-600 {
+  color: #DC2626 !important;
+}
+
+/* General text contrasts */
+html:not(.dark) .text-foreground {
+  color: #111827 !important;
+}
+
+html:not(.dark) .text-muted-foreground {
+  color: #6B7280 !important;
+}
+
+html:not(.dark) .text-muted-foreground\/50,
+html:not(.dark) .text-muted-foreground\/60 {
+  color: #8E8E93 !important;
+}
+
+html:not(.dark) .text-muted-foreground\/70,
+html:not(.dark) .text-muted-foreground\/80 {
+  color: #4B5563 !important;
+}
+
+/* Remove white text over light cards and light backgrounds */
+html:not(.dark) .text-white,
+html:not(.dark) .text-white\/90,
+html:not(.dark) .text-slate-100 {
+  color: #111827 !important;
+}
+
+html:not(.dark) .text-white\/80,
+html:not(.dark) .text-white\/70,
+html:not(.dark) .text-slate-200 {
+  color: #4B5563 !important;
+}
+
+html:not(.dark) .text-white\/60,
+html:not(.dark) .text-white\/50,
+html:not(.dark) .text-slate-300 {
+  color: #6B7280 !important;
+}
+
+/* Clean inputs for light mode */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+  background-color: #FFFFFF !important;
+  border-color: #E5E7EB !important;
+  color: #111827 !important;
+}
+
+html:not(.dark) input::placeholder {
+  color: #9CA3AF !important;
+}
+
+/* Clean solid borders and card backgrounds */
+html:not(.dark) .bg-card,
+html:not(.dark) .bg-card\/40,
+html:not(.dark) .bg-card\/50,
+html:not(.dark) .bg-card\/60,
+html:not(.dark) .bg-card\/80,
+html:not(.dark) .bg-card\/90,
+html:not(.dark) .bg-card\/95,
+html:not(.dark) .bg-black\/20,
+html:not(.dark) .bg-black\/30,
+html:not(.dark) .bg-black\/40,
+html:not(.dark) .bg-black\/65,
+html:not(.dark) [class*="bg-gradient-to-br from-card"] {
+  background-color: #FFFFFF !important;
+  background-image: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html:not(.dark) .border,
+html:not(.dark) .border-white\/5,
+html:not(.dark) .border-white\/10,
+html:not(.dark) .border-white\/20,
+html:not(.dark) .border-white\/\[0\.08\],
+html:not(.dark) .border-neutral-200 {
+  border-color: #E5E7EB !important;
+}
+
+/* Subtle shadows in light mode */
+html:not(.dark) .shadow-sm,
+html:not(.dark) .shadow-md,
+html:not(.dark) .shadow-lg,
+html:not(.dark) .shadow-xl,
+html:not(.dark) .shadow-2xl,
+html:not(.dark) [class*="shadow-"] {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+}
+
+html:not(.dark) [class*="shadow-[0_8px_"],
+html:not(.dark) [class*="shadow-[0_20px_"],
+html:not(.dark) [class*="shadow-[0_24px_"],
+html:not(.dark) [class*="shadow-[0_32px_"] {
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+}
+
+/* Disable glows and blur-effects in light mode */
+html:not(.dark) .blur-\[60px\],
+html:not(.dark) .blur-\[80px\],
+html:not(.dark) .blur-\[120px\] {
+  display: none !important;
+}
+
+html:not(.dark) .bg-primary\/10 {
+  background-color: rgba(0, 200, 83, 0.08) !important;
+  box-shadow: none !important;
+}
+
+html:not(.dark) .border-primary\/20 {
+  border-color: rgba(0, 200, 83, 0.15) !important;
+}
+
+html:not(.dark) .shadow-\[0_0_15px_rgba\(0\,230\,118\,0\.15\)\] {
+  box-shadow: none !important;
+}
+
+/* Color definitions for stats and dynamic charts in light mode */
+html:not(.dark) .text-emerald-400,
+html:not(.dark) .text-emerald-400\/90 {
+  color: #059669 !important; /* Verde ingresos */
+}
+
+html:not(.dark) .text-rose-400,
+html:not(.dark) .text-rose-400\/90 {
+  color: #DC2626 !important; /* Rojo gastos */
+}
+
+html:not(.dark) .text-blue-400,
+html:not(.dark) .text-blue-400\/90 {
+  color: #2563EB !important; /* Azul ahorro */
+}
+
+html:not(.dark) .bg-emerald-500\/10 {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+}
+
+html:not(.dark) .bg-rose-500\/10 {
+  background-color: rgba(239, 68, 68, 0.08) !important;
+}
+
+html:not(.dark) .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+}
+
+html:not(.dark) .bg-white\/\[0\.02\] {
+  background-color: #F9FAFB !important;
+}
+
+html:not(.dark) .border-white\/\[0\.03\] {
+  border-color: #E5E7EB !important;
+}
+
+/* Mobile translation/bottom navigation overrides in light mode */
+html:not(.dark) .md\:hidden.fixed.bottom-6 .blur-\[20px\] {
+  display: none !important;
+}
+
+html:not(.dark) .md\:hidden nav {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border-color: #E5E7EB !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.02) !important;
+}
+
+html:not(.dark) .md\:hidden nav .bg-gradient-to-t,
+html:not(.dark) .md\:hidden nav .bg-gradient-to-r {
+  display: none !important;
+}
+
+html:not(.dark) .md\:hidden nav a {
+  color: #6B7280 !important;
+}
+
+html:not(.dark) .md\:hidden nav a.text-primary {
+  color: #00c853 !important;
+}
+
+html:not(.dark) .md\:hidden nav a svg {
+  color: #6B7280 !important;
+}
+
+html:not(.dark) .md\:hidden nav a.text-primary svg {
+  color: #00c853 !important;
+}
+
+html:not(.dark) .md\:hidden nav a.text-primary .bg-primary\/10 {
+  background-color: rgba(0, 200, 83, 0.08) !important;
+}
+
+
+/* ==================================================
+   DARK MODE RESTORATION (Futuristic / High-Contrast Neon Slate Style)
+   ================================================== */
+
+html.dark {
+  background-color: #05070A !important;
+}
+
+html.dark body {
+  background-color: #05070A !important;
+  color: #FFFFFF !important;
+}
+
+/* Títulos principales: blanco puro #FFFFFF */
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4,
+html.dark .text-xl,
+html.dark .text-2xl,
+html.dark .text-3xl,
+html.dark .text-4xl,
+html.dark .text-5xl,
+html.dark .text-foreground {
+  color: #FFFFFF !important;
+}
+
+/* Subtítulos: #A1A1AA */
+html.dark .text-muted-foreground {
+  color: #A1A1AA !important;
+}
+
+html.dark .text-muted-foreground\/70,
+html.dark .text-muted-foreground\/80,
+html.dark .text-neutral-400,
+html.dark .text-slate-300 {
+  color: #A1A1AA !important;
+}
+
+/* Texto secundario: #71717A */
+html.dark .text-muted-foreground\/50,
+html.dark .text-muted-foreground\/60,
+html.dark .text-neutral-500,
+html.dark .text-slate-400,
+html.dark .text-gray-500 {
+  color: #71717A !important;
+}
+
+/* Monto disponible: blanco puro y MUY visible */
+html.dark .text-white,
+html.dark .text-white\/90,
+html.dark .text-slate-100,
+html.dark .dark\:text-white {
+  color: #FFFFFF !important;
+}
+
+/* Ensure background of cards are distinct visual panels of #0B0F14 */
+html.dark .bg-card,
+html.dark .bg-card\/40,
+html.dark .bg-card\/50,
+html.dark .bg-card\/60,
+html.dark .bg-card\/80,
+html.dark .bg-card\/90,
+html.dark .bg-card\/95,
+html.dark .bg-black\/20,
+html.dark .bg-black\/30,
+html.dark .bg-black\/40,
+html.dark .bg-black\/65,
+html.dark [class*="bg-gradient-to-br from-card"] {
+  background-color: #0B0F14 !important;
+  background-image: none !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+/* Glowing green AMARA borders in dark mode: rgba(0, 255, 150, 0.08) */
+html.dark .border,
+html.dark .border-white\/5,
+html.dark .border-white\/10,
+html.dark .border-white\/20,
+html.dark .border-white\/\[0\.08\],
+html.dark .border-neutral-200 {
+  border-color: rgba(0, 255, 150, 0.08) !important;
+}
+
+/* Restore atmospheric glow, subtle blur elements & bright highlights */
+html.dark .blur-\[60px\],
+html.dark .blur-\[80px\],
+html.dark .blur-\[120px\] {
+  display: block !important;
+}
+
+/* Ambient glow and neon lines in dark mode */
+html.dark .bg-primary\/10 {
+  background-color: rgba(0, 230, 118, 0.1) !important;
+  box-shadow: 0 0 15px rgba(0, 230, 118, 0.04) !important;
+}
+
+html.dark .border-primary\/20 {
+  border-color: rgba(0, 230, 118, 0.2) !important;
+}
+
+/* Input styles for dark mode */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #05070A !important;
+  border-color: rgba(0, 255, 150, 0.08) !important;
+  color: #FFFFFF !important;
+}
+
+html.dark input::placeholder {
+  color: #71717A !important;
+}
+
+/* Bottom navigation bar: translucid dark background */
+html.dark .md\:hidden nav {
+  background-color: rgba(11, 15, 20, 0.85) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-color: rgba(0, 255, 150, 0.08) !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 230, 118, 0.05) !important;
+}
+
+html.dark .md\:hidden nav a {
+  color: #71717A !important;
+}
+
+html.dark .md\:hidden nav a.text-primary {
+  color: #00e676 !important;
+}
+
+html.dark .md\:hidden nav a svg {
+  color: #71717A !important;
+}
+
+html.dark .md\:hidden nav a.text-primary svg {
+  color: #00e676 !important;
+}
+
+html.dark .md\:hidden nav a.text-primary .bg-primary\/10 {
+  background-color: rgba(0, 230, 118, 0.1) !important;
+}
+
+

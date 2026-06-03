@@ -40,7 +40,8 @@ const getStorageItem = (key: string): string | null => {
 
 const setStorageItem = (key: string, value: string) => {
   const amaraKey = key.replace('snapfinance_', 'amara_');
-  localStorage.setItem(amaraKey, value);
+    localStorage.setItem(amaraKey, value);
+  
 };
 
 const defaultSettings: UserSettings = {
@@ -54,6 +55,11 @@ const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+ 
+console.log(
+  'USER_METADATA_COMPLETA',
+  JSON.stringify(user?.user_metadata, null, 2)
+);
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [categorias, setCategorias] = useState<CategoriaPersonalizada[]>([]);
   const [bolsillos, setBolsillos] = useState<Bolsillo[]>([]);
@@ -61,8 +67,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [monthlyCycles, setMonthlyCycles] = useState<MonthlyCycle[]>([]);
   const [loading, setLoading] = useState(true);
   const [settings, setSettingsInternal] = useState<UserSettings>(() => {
-    const saved = getStorageItem('snapfinance_settings');
-    const parsed = saved ? JSON.parse(saved) : defaultSettings;
+    const saved = null;
+        const parsed = saved ? JSON.parse(saved) : defaultSettings;
     const isSessionCompleted = false;
     console.log(
       'PARSED_SETTINGS',
@@ -83,15 +89,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         nextValue = newValOrFunc;
       }
       
-      const wasCompleted = nextValue.onboarding_completed ||
+      /*const wasCompleted = nextValue.onboarding_completed ||
                            sessionStorage.getItem('snapfinance_onboarding_completed_session') === 'true';
                            
       if (wasCompleted) {
         nextValue = { ...nextValue, onboarding_completed: true };
         try {
           sessionStorage.setItem('snapfinance_onboarding_completed_session', 'true');
-        } catch (e) {}
-      }
+        }  catch (e) {}
+      }*/
       return nextValue;
     });
   };
@@ -100,9 +106,20 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     if (user) {
       const savedUser = getStorageItem(`snapfinance_settings_${user.id}`);
+      
+
+if (savedUser) {
+  console.log(
+    'SAVED_USER_PARSED',
+    JSON.parse(savedUser)
+  );
+}
+      
+               
       if (savedUser) {
-        setSettings(JSON.parse(savedUser));
+                setSettings(JSON.parse(savedUser));
       } else if (user.user_metadata?.settings) {
+        
         setSettings(user.user_metadata.settings);
         setStorageItem(`snapfinance_settings_${user.id}`, JSON.stringify(user.user_metadata.settings));
       } else {
@@ -492,10 +509,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (user && hasSupabaseConfig && supabase) {
       try {
         if (updatedVal) {
-          const { error } = await supabase.auth.updateUser({
-            data: { settings: updatedVal }
+                   const { error } = await supabase.auth.updateUser({
+            data: { settings: updatedVal } 
           });
-          if (error) {
+          const { data: currentUser } = await supabase.auth.getUser();
+
+                      if (error) {
             console.error("Error updating settings metadata in Supabase:", error);
           }
         }

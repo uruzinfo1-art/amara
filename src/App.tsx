@@ -36,19 +36,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   const { session } = useAuth();
   const { settings, loading } = useFinance();
-console.log('ONBOARDING CHECK', {
-  loading,
-  onboarding: settings?.onboarding_completed,
-  settings
-});
-console.log(
-  'AMARA_ONBOARDING',
-  JSON.stringify({
-    loading,
-    onboarding_completed: settings?.onboarding_completed,
-    session: !!session
-  })
-);
+
+
   const showOnboarding =
     session &&
     !loading &&

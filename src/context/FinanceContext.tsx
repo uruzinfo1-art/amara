@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Movimiento, UserSettings, CategoriaPersonalizada, Bolsillo, FixedExpense, MonthlyCycle } from '../types';
+import { Movimiento, Profile, UserSettings, CategoriaPersonalizada, Bolsillo, FixedExpense, MonthlyCycle } from '../types';
 import { supabase, hasSupabaseConfig } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { DEFAULT_CATEGORIES } from '../lib/categoryUtils';
@@ -13,6 +13,9 @@ interface FinanceContextType {
   monthlyCycles: MonthlyCycle[];
   loading: boolean;
   settings: UserSettings;
+  profiles: Profile[];
+  activeProfile: Profile | null;
+  setActiveProfile: (profile: Profile) => void;
   updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
   addMovimiento: (movimiento: Omit<Movimiento, 'id' | 'created_at'>) => Promise<void>;
   updateMovimiento: (id: string, movimiento: Partial<Movimiento>) => Promise<void>;
@@ -31,6 +34,8 @@ interface FinanceContextType {
   updateFixedExpense: (id: string | number, fixedExpense: Partial<FixedExpense>) => Promise<void>;
   addMonthlyCycle: (cycle: Omit<MonthlyCycle, 'id' | 'closed_at' | 'user_id'>) => Promise<void>;
   resetApp: () => Promise<void>;
+  createProfile: (name: string) => Promise<any>;
+  renameProfile: (id: number, name: string) => Promise<void>;
 }
 
 const getStorageItem = (key: string): string | null => {
@@ -40,8 +45,8 @@ const getStorageItem = (key: string): string | null => {
 
 const setStorageItem = (key: string, value: string) => {
   const amaraKey = key.replace('snapfinance_', 'amara_');
-    localStorage.setItem(amaraKey, value);
-  
+  localStorage.setItem(amaraKey, value);
+
 };
 
 const defaultSettings: UserSettings = {
@@ -55,20 +60,57 @@ const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
- 
-console.log(
-  'USER_METADATA_COMPLETA',
-  JSON.stringify(user?.user_metadata, null, 2)
-);
+
+  console.log(
+    'USER_METADATA_COMPLETA',
+    JSON.stringify(user?.user_metadata, null, 2)
+  );
   const [movimientos, setMovimientos] = useState<Movimiento[]>([]);
   const [categorias, setCategorias] = useState<CategoriaPersonalizada[]>([]);
   const [bolsillos, setBolsillos] = useState<Bolsillo[]>([]);
   const [fixedExpenses, setFixedExpenses] = useState<FixedExpense[]>([]);
   const [monthlyCycles, setMonthlyCycles] = useState<MonthlyCycle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+  useEffect(() => {
+    if (!user) return;
+
+    const loadProfiles = async () => {
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('is_default', { ascending: false });
+
+      if (error) {
+        console.error(error);
+        return;
+      }
+      if (!data?.length) {
+  await createProfile(
+  user.user_metadata?.userName ||
+  user.user_metadata?.full_name ||
+  user.email?.split('@')[0] ||
+  'Usuario'
+);
+  return;
+}
+
+      setProfiles(data || []);
+      console.log('PERFILES_CARGADOS', data);
+
+      if (data?.length && !activeProfile) {
+        setActiveProfile(data[0]);
+      }
+    };
+
+    loadProfiles();
+  }, [user]);
   const [settings, setSettingsInternal] = useState<UserSettings>(() => {
     const saved = null;
-        const parsed = saved ? JSON.parse(saved) : defaultSettings;
+    const parsed = saved ? JSON.parse(saved) : defaultSettings;
     const isSessionCompleted = false;
     console.log(
       'PARSED_SETTINGS',
@@ -88,7 +130,7 @@ console.log(
       } else {
         nextValue = newValOrFunc;
       }
-      
+
       /*const wasCompleted = nextValue.onboarding_completed ||
                            sessionStorage.getItem('snapfinance_onboarding_completed_session') === 'true';
                            
@@ -106,20 +148,20 @@ console.log(
   useEffect(() => {
     if (user) {
       const savedUser = getStorageItem(`snapfinance_settings_${user.id}`);
-      
 
-if (savedUser) {
-  console.log(
-    'SAVED_USER_PARSED',
-    JSON.parse(savedUser)
-  );
-}
-      
-               
+
       if (savedUser) {
-                setSettings(JSON.parse(savedUser));
+        console.log(
+          'SAVED_USER_PARSED',
+          JSON.parse(savedUser)
+        );
+      }
+
+
+      if (savedUser) {
+        setSettings(JSON.parse(savedUser));
       } else if (user.user_metadata?.settings) {
-        
+
         setSettings(user.user_metadata.settings);
         setStorageItem(`snapfinance_settings_${user.id}`, JSON.stringify(user.user_metadata.settings));
       } else {
@@ -165,7 +207,7 @@ if (savedUser) {
       setLoading(false);
       return;
     }
-    
+
     if (hasSupabaseConfig && supabase) {
       try {
         const [movResponse, catResponse, bolResponse, fixExpResponse] = await Promise.all([
@@ -173,45 +215,68 @@ if (savedUser) {
             .from('movimientos')
             .select('*')
             .eq('user_id', user.id)
+            .eq('profile_id', activeProfile?.id || 1)
             .order('fecha', { ascending: false }),
           supabase
             .from('categorias')
             .select('*')
             .eq('user_id', user.id)
+            .eq('profile_id', activeProfile?.id || 1)
             .order('created_at', { ascending: true }),
           supabase
             .from('bolsillos')
             .select('*')
             .eq('user_id', user.id)
+            .eq('profile_id', activeProfile?.id || 1)
             .order('created_at', { ascending: true }),
           supabase
             .from('fixed_expenses')
             .select('*')
             .eq('user_id', user.id)
+            .eq('profile_id', activeProfile?.id || 1)
             .order('created_at', { ascending: true })
         ]);
-        
+
         if (movResponse.error) throw movResponse.error;
         if (catResponse.error) throw catResponse.error;
         if (bolResponse.error) throw bolResponse.error;
         if (fixExpResponse.error) throw fixExpResponse.error;
-        
+
         let loadedCats = catResponse.data || [];
-        
+
         const isCatInitialized = getStorageItem(`snapfinance_cat_init_${user.id}`);
         // If they have no categories or we need to restore defaults:
-        
+
         let newCatsAdded: any[] = [];
         for (const defaultCat of DEFAULT_CATEGORIES) {
-          if (!loadedCats.find((c: any) => c.nombre === defaultCat.nombre && (c.is_default || c.tipo === defaultCat.type || c.type === defaultCat.type))) {
+          if (
+            !loadedCats.find(
+              (c: any) =>
+                c.nombre === defaultCat.nombre &&
+                c.type === defaultCat.type
+            )
+          ) {
             const { id: _, ...catData } = defaultCat;
-            const catWithUser = { ...catData, user_id: user.id };
-            
-            const { data, error } = await supabase.from('categorias').insert(catWithUser).select().single();
-            if(!error && data) {
-               newCatsAdded.push(data);
+
+            const catWithUser = {
+              ...catData,
+              user_id: user.id
+            };
+
+            const { data, error } = await supabase
+              .from('categorias')
+              .insert(catWithUser)
+              .select()
+              .single();
+
+            if (!error && data) {
+              newCatsAdded.push(data);
             } else {
-               newCatsAdded.push({ ...catWithUser, id: defaultCat.id, created_at: new Date().toISOString() });
+              newCatsAdded.push({
+                ...catWithUser,
+                id: defaultCat.id,
+                created_at: new Date().toISOString()
+              });
             }
           }
         }
@@ -224,7 +289,7 @@ if (savedUser) {
         }
 
         const sortedData = (movResponse.data || []).map(item => ({
-          ...item, 
+          ...item,
           monto: Number(item.monto)
         })).sort((a, b) => {
           if (a.fecha === b.fecha && a.created_at && b.created_at) {
@@ -232,10 +297,10 @@ if (savedUser) {
           }
           return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
         });
-        
+
         setMovimientos(sortedData);
         setCategorias(loadedCats);
-        
+
         const bolsillosData = (bolResponse.data || []).map(b => ({ ...b, saldo: Number(b.saldo), meta: Number(b.meta) }));
         setBolsillos(bolsillosData);
         setFixedExpenses(fixExpResponse.data || []);
@@ -330,15 +395,21 @@ if (savedUser) {
         sortedData = parsed.sort((a: Movimiento, b: Movimiento) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
         setMovimientos(sortedData);
       }
-      
+
       const savedCat = getStorageItem(`snapfinance_categorias_${user.id}`);
       const isCatInitialized = getStorageItem(`snapfinance_cat_init_${user.id}`);
-      
+
       const existingCats = savedCat ? JSON.parse(savedCat) : [];
-      const missingDefaults = DEFAULT_CATEGORIES.filter(d => !existingCats.find((c: any) => c.nombre === d.nombre && (c.is_default || c.tipo === d.type || c.type === d.type)));
-      
+      const missingDefaults = DEFAULT_CATEGORIES.filter(
+        d =>
+          !existingCats.find(
+            (c: any) =>
+              c.nombre === d.nombre &&
+              c.type === d.type
+          )
+      );
       let finalCats = existingCats;
-      
+
       if (missingDefaults.length > 0) {
         const newLocalStorageCats = missingDefaults.map(cat => ({
           ...cat,
@@ -346,16 +417,16 @@ if (savedUser) {
           user_id: user.id,
           created_at: new Date().toISOString()
         }));
-        
+
         finalCats = [...existingCats, ...newLocalStorageCats];
         setStorageItem(`snapfinance_categorias_${user.id}`, JSON.stringify(finalCats));
       }
-      
+
       setCategorias(finalCats);
       if (!isCatInitialized) {
         setStorageItem(`snapfinance_cat_init_${user.id}`, 'true');
       }
-      
+
       const savedBol = getStorageItem(`snapfinance_bolsillos_${user.id}`);
       if (savedBol) {
         setBolsillos(JSON.parse(savedBol));
@@ -415,7 +486,7 @@ if (savedUser) {
 
   useEffect(() => {
     let isInitialMount = true;
-    
+
     const initialFetch = async () => {
       if (isInitialMount) setLoading(true);
       await refreshData();
@@ -431,7 +502,7 @@ if (savedUser) {
     let channelCats: any = null;
     let channelBols: any = null;
     let channelTrs: any = null;
-    
+
     if (hasSupabaseConfig && supabase && user) {
       channelMovs = supabase
         .channel(`movimientos_changes_${user.id}`)
@@ -443,7 +514,7 @@ if (savedUser) {
           }
         )
         .subscribe();
-        
+
       channelCats = supabase
         .channel(`categorias_changes_${user.id}`)
         .on(
@@ -454,7 +525,7 @@ if (savedUser) {
           }
         )
         .subscribe();
-        
+
       channelBols = supabase
         .channel(`bolsillos_changes_${user.id}`)
         .on(
@@ -465,7 +536,7 @@ if (savedUser) {
           }
         )
         .subscribe();
-      
+
       channelTrs = supabase
         .channel(`transferencias_changes_${user.id}`)
         .on(
@@ -486,21 +557,21 @@ if (savedUser) {
         if (channelTrs) supabase.removeChannel(channelTrs);
       }
     };
-  }, [user]);
+  }, [user, activeProfile]);
 
   const updateSettings = async (newSettings: Partial<UserSettings>) => {
     let updatedVal: UserSettings | null = null;
-    
+
     setSettings(prev => {
       const updated = { ...prev, ...newSettings };
       const wasCompleted = updated.onboarding_completed ||
-                           sessionStorage.getItem('snapfinance_onboarding_completed_session') === 'true';
-                           
+        sessionStorage.getItem('snapfinance_onboarding_completed_session') === 'true';
+
       if (wasCompleted) {
         updated.onboarding_completed = true;
         try {
           sessionStorage.setItem('snapfinance_onboarding_completed_session', 'true');
-        } catch (e) {}
+        } catch (e) { }
       }
       updatedVal = updated;
       return updated;
@@ -509,12 +580,12 @@ if (savedUser) {
     if (user && hasSupabaseConfig && supabase) {
       try {
         if (updatedVal) {
-                   const { error } = await supabase.auth.updateUser({
-            data: { settings: updatedVal } 
+          const { error } = await supabase.auth.updateUser({
+            data: { settings: updatedVal }
           });
           const { data: currentUser } = await supabase.auth.getUser();
 
-                      if (error) {
+          if (error) {
             console.error("Error updating settings metadata in Supabase:", error);
           }
         }
@@ -527,7 +598,11 @@ if (savedUser) {
   const addMovimiento = async (mov: Omit<Movimiento, 'id' | 'created_at'>) => {
     if (!user) throw new Error("Debes haber iniciado sesión");
 
-    const movWithUser = { ...mov, user_id: user.id };
+    const movWithUser = {
+      ...mov,
+      user_id: user.id,
+      profile_id: activeProfile?.id || 1
+    };
 
     if (hasSupabaseConfig && supabase) {
       const { subtipo, ...supabaseMov } = movWithUser as any;
@@ -536,7 +611,7 @@ if (savedUser) {
         .insert([supabaseMov])
         .select()
         .single();
-      
+
       if (error) {
         console.error("Supabase error insertando movimiento:", error);
         throw error;
@@ -568,9 +643,10 @@ if (savedUser) {
         .update(safeUpdates)
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('profile_id', activeProfile?.id || 1)
         .select()
         .single();
-      
+
       if (error) {
         console.error("Supabase error modificando movimiento:", error);
         throw error;
@@ -597,7 +673,7 @@ if (savedUser) {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
-      
+
       if (error) throw error;
       setMovimientos(prev => prev.filter(m => m.id !== id));
     } else {
@@ -620,10 +696,10 @@ if (savedUser) {
         const bolsilloId = isNaN(Number(bolsilloIdStr)) ? bolsilloIdStr : Number(bolsilloIdStr);
         const bolsillo = bolsillos.find(b => b.id == bolsilloId);
         if (bolsillo) {
-           // Si era ahorro: se sumó al saldo (gasto con categoria bolsillo_). Al borrarlo, restamos (-monto).
-           // Si era retiro: se restó al saldo (gasto con categoria retiro_bolsillo_). Al borrarlo, sumamos (+monto).
-           const change = isRetiro ? movToDelete.monto : -movToDelete.monto;
-           await updateBolsillo(bolsillo.id, { saldo: Math.max(0, bolsillo.saldo + change) });
+          // Si era ahorro: se sumó al saldo (gasto con categoria bolsillo_). Al borrarlo, restamos (-monto).
+          // Si era retiro: se restó al saldo (gasto con categoria retiro_bolsillo_). Al borrarlo, sumamos (+monto).
+          const change = isRetiro ? movToDelete.monto : -movToDelete.monto;
+          await updateBolsillo(bolsillo.id, { saldo: Math.max(0, bolsillo.saldo + change) });
         }
       }
     }
@@ -632,15 +708,18 @@ if (savedUser) {
   const addCategoria = async (cat: Omit<CategoriaPersonalizada, 'id' | 'created_at'>) => {
     if (!user) throw new Error("Debes haber iniciado sesión");
 
-    const catWithUser = { ...cat, user_id: user.id };
-
+    const catWithUser = {
+      ...cat,
+      user_id: user.id,
+      profile_id: activeProfile?.id || 1
+    };
     if (hasSupabaseConfig && supabase) {
       const { data, error } = await supabase
         .from('categorias')
         .insert([catWithUser])
         .select()
         .single();
-      
+
       if (error) {
         console.error("Supabase error insertando categoria:", error);
         throw error;
@@ -669,9 +748,10 @@ if (savedUser) {
         .update(safeUpdates)
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('profile_id', activeProfile?.id || 1)
         .select()
         .single();
-      
+
       if (error) {
         console.error("Supabase error modificando categoria:", error);
         throw error;
@@ -695,7 +775,7 @@ if (savedUser) {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
-      
+
       if (error) {
         console.error("Supabase error eliminando categoria:", error);
         throw error;
@@ -711,7 +791,11 @@ if (savedUser) {
   const addBolsillo = async (bolsillo: Omit<Bolsillo, 'id' | 'created_at'>) => {
     if (!user) throw new Error("Debes haber iniciado sesión");
 
-    const bolWithUser = { ...bolsillo, user_id: user.id };
+    const bolWithUser = {
+      ...bolsillo,
+      user_id: user.id,
+      profile_id: activeProfile?.id || 1
+    };
 
     if (hasSupabaseConfig && supabase) {
       const { data, error } = await supabase
@@ -719,7 +803,7 @@ if (savedUser) {
         .insert([bolWithUser])
         .select()
         .single();
-      
+
       if (error) {
         console.error("Supabase error insertando bolsillo:", error);
         throw error;
@@ -753,9 +837,11 @@ if (savedUser) {
         .update(safeUpdates)
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('profile_id', activeProfile?.id || 1)
+
         .select()
         .single();
-      
+
       if (error) {
         console.error("Supabase error modificando bolsillo:", error);
         throw error;
@@ -786,12 +872,12 @@ if (savedUser) {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id);
-      
+
       if (error) {
         console.error("Supabase error eliminando bolsillo:", error);
         throw error;
       }
-      
+
       setBolsillos(prev => prev.filter(b => b.id !== id));
     } else {
       const newBolsillos = bolsillos.filter(b => b.id !== id);
@@ -807,24 +893,24 @@ if (savedUser) {
     const gastos = movimientos.filter(m => !isExpenseConfig(m) && isExpenseReal(m)).reduce((sum, m) => sum + m.monto, 0);
     const availableBalance = ingresos - gastos;
     if (monto > availableBalance) throw new Error("No hay suficiente saldo disponible en la cuenta principal.");
-    
+
     const bolsillo = bolsillos.find(b => b.id === bolsilloId);
     if (!bolsillo) throw new Error("Bolsillo no encontrado");
 
     if (hasSupabaseConfig && supabase) {
       const { error: trError } = await supabase.from('transferencias_bolsillos').insert([{
-         bolsillo_id: bolsilloId,
-         tipo: 'deposito',
-         monto,
-         descripcion: descripcion || `Transferencia a bolsillo`,
-         user_id: user.id
+        bolsillo_id: bolsilloId,
+        tipo: 'deposito',
+        monto,
+        descripcion: descripcion || `Transferencia a bolsillo`,
+        user_id: user.id
       }]);
       if (trError) throw trError;
     }
 
     const newSaldo = Number(bolsillo.saldo) + monto;
     await updateBolsillo(bolsilloId, { saldo: newSaldo });
-    
+
     await addMovimiento({
       tipo: 'ahorro',
       monto,
@@ -843,11 +929,11 @@ if (savedUser) {
 
     if (hasSupabaseConfig && supabase) {
       const { error: trError } = await supabase.from('transferencias_bolsillos').insert([{
-         bolsillo_id: bolsilloId,
-         tipo: 'retiro',
-         monto,
-         descripcion: descripcion || `Retiro de bolsillo`,
-         user_id: user.id
+        bolsillo_id: bolsilloId,
+        tipo: 'retiro',
+        monto,
+        descripcion: descripcion || `Retiro de bolsillo`,
+        user_id: user.id
       }]);
       if (trError) throw trError;
     }
@@ -858,7 +944,7 @@ if (savedUser) {
 
   const obtenerTransferenciasBolsillo = async (bolsilloId: string | number) => {
     if (!user) return [];
-    
+
     if (hasSupabaseConfig && supabase) {
       const { data, error } = await supabase
         .from('transferencias_bolsillos')
@@ -866,16 +952,16 @@ if (savedUser) {
         .eq('bolsillo_id', bolsilloId)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-        
+
       if (!error && data) {
         return data;
       }
     }
-    
+
     // Fallback: fetch from in-memory / local storage movimientos
     const transfersAsMovimientos = movimientos.filter(
-      m => (m.tipo === 'transferencia' || m.tipo === 'ahorro' || m.tipo === 'retiro_ahorro') && 
-           (m.categoria === `bolsillo_${bolsilloId}` || m.categoria === `retiro_bolsillo_${bolsilloId}`)
+      m => (m.tipo === 'transferencia' || m.tipo === 'ahorro' || m.tipo === 'retiro_ahorro') &&
+        (m.categoria === `bolsillo_${bolsilloId}` || m.categoria === `retiro_bolsillo_${bolsilloId}`)
     ).sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
 
     return transfersAsMovimientos.map(m => ({
@@ -891,18 +977,22 @@ if (savedUser) {
   const addFixedExpense = async (expense: Omit<FixedExpense, 'id' | 'created_at'>) => {
     if (!user) throw new Error("Debes haber iniciado sesión");
     const { monto, ...cleanExpense } = expense;
-    const expenseWithUser = { ...cleanExpense, user_id: user.id };
-    
+    const expenseWithUser = {
+      ...cleanExpense,
+      user_id: user.id,
+      profile_id: activeProfile?.id || 1
+    };
+
     if (hasSupabaseConfig && supabase) {
       console.log('Sending insert to supabase:', expenseWithUser);
       const { data, error } = await supabase.from('fixed_expenses').insert([expenseWithUser]).select();
-      
+
       console.log('Supabase insert result:', { data, error });
       if (error) {
         console.error("Error creating fixed expense:", error);
         throw new Error(error.message || JSON.stringify(error));
       }
-      
+
       console.log("Fetching fresh data from fixed_expenses to refresh context...");
       // Some RLS setups return empty array if select policy is missing for insert. 
       // We will refetch to be absolutely safe and update context correctly.
@@ -910,7 +1000,7 @@ if (savedUser) {
         .from('fixed_expenses')
         .select('*')
         .eq('user_id', user.id);
-        
+
       if (!fetchError && freshData) {
         console.log("Refreshed fixed expenses. Count:", freshData.length);
         setFixedExpenses(freshData);
@@ -931,28 +1021,32 @@ if (savedUser) {
   const addFixedExpenses = async (expenses: Omit<FixedExpense, 'id' | 'created_at'>[]) => {
     if (!user) throw new Error("Debes haber iniciado sesión");
     if (expenses.length === 0) return;
-    
+
     const cleanExpensesWithUser = expenses.map(expense => {
       const { monto, ...clean } = expense;
-      return { ...clean, user_id: user.id };
+      return {
+        ...clean,
+        user_id: user.id,
+        profile_id: activeProfile?.id || 1
+      };
     });
-    
+
     if (hasSupabaseConfig && supabase) {
       console.log('Sending bulk insert to supabase:', cleanExpensesWithUser);
       const { data, error } = await supabase.from('fixed_expenses').insert(cleanExpensesWithUser).select();
-      
+
       console.log('Supabase bulk insert result:', { data, error });
       if (error) {
         console.error("Error creating fixed expenses:", error);
         throw new Error(error.message || JSON.stringify(error));
       }
-      
+
       console.log("Fetching fresh data from fixed_expenses to refresh context...");
       const { data: freshData, error: fetchError } = await supabase
         .from('fixed_expenses')
         .select('*')
         .eq('user_id', user.id);
-        
+
       if (!fetchError && freshData) {
         console.log("Refreshed fixed expenses. Count:", freshData.length);
         setFixedExpenses(freshData);
@@ -974,20 +1068,44 @@ if (savedUser) {
     }
   };
 
-  const updateFixedExpense = async (id: string | number, expense: Partial<FixedExpense>) => {
+  const updateFixedExpense = async (
+    id: string | number,
+    expense: Partial<FixedExpense>
+  ) => {
     if (!user) throw new Error("Debes haber iniciado sesión");
-    
+
     if (hasSupabaseConfig && supabase) {
-      const { error } = await supabase.from('fixed_expenses').update(expense).eq('id', id);
+      const { error } = await supabase
+        .from('fixed_expenses')
+        .update(expense)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .eq('profile_id', activeProfile?.id || 1);
+
       if (error) {
         console.error("Error updating fixed expense:", error);
         throw error;
       }
-      setFixedExpenses(prev => prev.map(e => String(e.id) === String(id) ? { ...e, ...expense } : e));
+
+      setFixedExpenses(prev =>
+        prev.map(e =>
+          String(e.id) === String(id)
+            ? { ...e, ...expense }
+            : e
+        )
+      );
     } else {
-      const newExpenses = fixedExpenses.map(e => String(e.id) === String(id) ? { ...e, ...expense } : e);
+      const newExpenses = fixedExpenses.map(e =>
+        String(e.id) === String(id)
+          ? { ...e, ...expense }
+          : e
+      );
+
       setFixedExpenses(newExpenses);
-      setStorageItem(`snapfinance_fixed_${user.id}`, JSON.stringify(newExpenses));
+      setStorageItem(
+        `snapfinance_fixed_${user.id}`,
+        JSON.stringify(newExpenses)
+      );
     }
   };
 
@@ -1045,10 +1163,67 @@ if (savedUser) {
       setStorageItem(`snapfinance_monthly_cycles_${user.id}`, JSON.stringify(newCycles));
     }
   };
+const createProfile = async (name: string) => {
+  if (!user || !supabase) return;
 
+  const { data, error } = await supabase
+    .from('profiles')
+    .insert([
+{
+  user_id: user.id,
+  name,
+  profile_type: 'home',
+  initial_investment: 0,
+  is_default: profiles.length === 0
+}
+])
+.select()
+.single();
+    
+
+  if (error) {
+    console.error('Error creando perfil:', error);
+    return null;
+  }
+  console.log("PERFIL CREADO:", data);
+
+  setProfiles((prev) => [...prev, data]);
+  setActiveProfile(data);
+
+  return data;
+};
+const renameProfile = async (id: string | number, name: string) => {
+  if (!user || !supabase) return;
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ name })
+    .eq('id', id)
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.error('Error renombrando perfil:', error);
+    return;
+  }
+
+  setProfiles(prev =>
+    prev.map(profile =>
+      profile.id === id
+        ? { ...profile, name }
+        : profile
+    )
+  );
+
+  if (activeProfile?.id === id) {
+    setActiveProfile({
+      ...activeProfile,
+      name
+    });
+  }
+};
   const resetApp = async () => {
     if (!user) throw new Error("Debes haber iniciado sesión");
-    
+
     setLoading(true);
     try {
       if (hasSupabaseConfig && supabase) {
@@ -1063,7 +1238,7 @@ if (savedUser) {
           'periodos',
           'monthly_cycles'
         ];
-        
+
         for (const table of tables) {
           try {
             await supabase.from(table).delete().eq('user_id', user.id);
@@ -1080,7 +1255,7 @@ if (savedUser) {
           theme: 'dark',
           onboarding_completed: false
         };
-        
+
         await supabase.auth.updateUser({
           data: { settings: freshSettings }
         });
@@ -1107,14 +1282,14 @@ if (savedUser) {
       setBolsillos([]);
       setFixedExpenses([]);
       setMonthlyCycles([]);
-      
+
       const defaultName = user.user_metadata?.full_name || user.email?.split('@')[0] || defaultSettings.userName;
       setSettings({
         userName: defaultName,
         currency: 'USD',
         theme: 'dark'
       });
-      
+
       // We trigger a refreshData to auto-provision default categories/configs for this clean-slate state.
       await refreshData();
     } catch (error) {
@@ -1127,7 +1302,7 @@ if (savedUser) {
 
   return (
     <FinanceContext.Provider value={{
-      movimientos, categorias, bolsillos, fixedExpenses, monthlyCycles, loading, settings, updateSettings, addMovimiento, updateMovimiento, deleteMovimiento, addCategoria, updateCategoria, deleteCategoria, addBolsillo, updateBolsillo, deleteBolsillo, transferirABolsillo, retirarDeBolsillo, obtenerTransferenciasBolsillo, addFixedExpense, addFixedExpenses, updateFixedExpense, addMonthlyCycle, resetApp
+      profiles, activeProfile, renameProfile, setActiveProfile, movimientos, categorias, bolsillos, fixedExpenses, monthlyCycles, loading, settings, updateSettings, addMovimiento, updateMovimiento, deleteMovimiento, addCategoria, updateCategoria, deleteCategoria, addBolsillo, updateBolsillo, deleteBolsillo, transferirABolsillo, retirarDeBolsillo, obtenerTransferenciasBolsillo, addFixedExpense, addFixedExpenses, updateFixedExpense, addMonthlyCycle, resetApp, createProfile
     }}>
       {children}
     </FinanceContext.Provider>

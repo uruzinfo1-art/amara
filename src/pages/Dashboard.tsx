@@ -14,12 +14,14 @@ import { FixedExpensesFab } from '../components/FixedExpensesFab';
 import { AutoClosureModal } from '../components/AutoClosureModal';
 import { ProfilePicture } from '../components/ProfilePicture';
 
+
 export function Dashboard() {
-  const { movimientos, categorias, settings, loading, bolsillos, updateSettings, monthlyCycles, addMonthlyCycle } = useFinance();
+  const { profiles, activeProfile, setActiveProfile, movimientos, categorias, settings, createProfile, loading, bolsillos, updateSettings, monthlyCycles, addMonthlyCycle } = useFinance();
   const navigate = useNavigate();
   const [showBalanceModal, setShowBalanceModal] = React.useState(false);
   const [touchStartY, setTouchStartY] = React.useState<number | null>(null);
   const [touchCurrentY, setTouchCurrentY] = React.useState<number | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = React.useState(false);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStartY(e.touches[0].clientY);
@@ -186,8 +188,7 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-row items-center justify-between mb-6 sm:mb-8 mt-2 sm:mt-4 p-5 sm:p-7 bg-gradient-to-br from-card/80 to-background/50 backdrop-blur-2xl border border-white/[0.08] rounded-3xl sm:rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.6)] relative overflow-hidden group">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none group-hover:bg-primary/10 transition-colors duration-700"></div>
+<header className="relative z-50 flex flex-row items-center justify-between mb-6 sm:mb-8 mt-2 sm:mt-4">        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px] -mr-20 -mt-20 pointer-events-none group-hover:bg-primary/10 transition-colors duration-700"></div>
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 rounded-full blur-[60px] -ml-20 -mb-20 pointer-events-none"></div>
         
         <div className="relative z-10">
@@ -197,13 +198,13 @@ export function Dashboard() {
           <div className="mt-1 sm:mt-1.5 flex items-center gap-2 text-[12px] sm:text-[13px] font-medium text-muted-foreground/60 w-fit">
             <div className="bg-black/5 dark:bg-white/5 border border-neutral-200 dark:border-white/5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-primary/70 animate-pulse"></span>
-              {displayDate}
+              {activeProfile?.name || 'Perfil'} • {displayDate}
             </div>
           </div>
         </div>
         <div className="flex items-center relative z-10 pl-3">
           <button 
-            onClick={() => navigate('/settings')}
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="rounded-full shadow-[0_0_20px_rgba(34,197,94,0.15)] cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 group/avatar flex items-center justify-center overflow-hidden"
             aria-label="Ir a Ajustes"
           >
@@ -214,6 +215,52 @@ export function Dashboard() {
               className="w-11 h-11 sm:w-12 sm:h-12 hover:border-[#00ff80] transition-colors"
             />
           </button>
+          {showProfileMenu && (
+  <div className="absolute right-0 top-16 w-64 rounded-2xl border bg-card p-2 shadow-xl z-50">
+    <div className="space-y-1">
+      <div className="space-y-2">
+   {profiles.map((profile) => (
+  <button
+    key={profile.id}
+    onClick={() => {
+      setActiveProfile(profile);
+      setShowProfileMenu(false);
+    }}
+    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5"
+  >
+    👤 {profile.name}
+  </button>
+))}
+  <button
+  onClick={async () => {
+    const nombre = prompt("Nombre del nuevo perfil");
+
+    if (!nombre) return;
+
+    await createProfile(nombre);
+    setShowProfileMenu(false);
+  }}
+  className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5"
+>
+  ➕ Nuevo perfil
+</button>
+
+</div>
+
+  <div className="border-t border-white/10 my-2"></div>
+
+  <button
+    onClick={() => {
+      setShowProfileMenu(false);
+      navigate("/settings");
+    }}
+    className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5"
+  >
+    ⚙ Ajustes
+  </button>
+</div>
+  </div>
+)}
         </div>
       </header>
 
@@ -320,8 +367,7 @@ export function Dashboard() {
                     data={donutData}
                     cx="50%"
                     cy="50%"
-                    activeIndex={-1}
-                    activeShape={null}
+                   
                     isAnimationActive={false}
                     innerRadius="75%"
                     outerRadius="100%"

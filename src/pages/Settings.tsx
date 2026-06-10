@@ -78,7 +78,17 @@ const compressAndResizeToWebP = (file: File): Promise<Blob> => {
 };
 
 export function Settings() {
-  const { settings, updateSettings, resetApp } = useFinance();
+  
+  const {
+  settings,
+  updateSettings,
+  resetApp,
+  profiles,
+  activeProfile,
+  setActiveProfile,
+  renameProfile
+} = useFinance();
+
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -425,6 +435,50 @@ export function Settings() {
           </div>
           
           <div className="pt-4 border-t border-border mt-4">
+            <div className="pt-4 border-t border-border mt-4">
+  
+
+  <select
+    className="w-full rounded-lg border p-2"
+    value={activeProfile?.id || ""}
+    onChange={(e) => {
+      const profile = profiles.find(
+        p => String(p.id) === e.target.value
+      );
+
+      if (profile) {
+        setActiveProfile(profile);
+      }
+    }}
+  >
+    {profiles.map(profile => (
+      <option
+        key={profile.id}
+        value={profile.id}
+      >
+        {profile.name}
+      </option>
+    ))}
+  </select>
+  <Button
+  variant="outline"
+  className="w-full mt-2"
+  onClick={async () => {
+    if (!activeProfile) return;
+
+    const nuevoNombre = prompt(
+      'Nuevo nombre del perfil:',
+      activeProfile.name
+    );
+
+    if (!nuevoNombre?.trim()) return;
+
+    await renameProfile(activeProfile.id, nuevoNombre.trim());
+  }}
+>
+  Renombrar perfil actual
+</Button>
+</div>
             <h4 className="text-sm font-medium mb-1">Cuenta Conectada</h4>
             <p className="text-sm text-muted-foreground mb-4">{user?.email || 'Sin sesión iniciada'}</p>
             <Button variant="outline" className="w-full text-rose-500 hover:text-rose-600 hover:bg-rose-500/10" onClick={handleSignOut}>

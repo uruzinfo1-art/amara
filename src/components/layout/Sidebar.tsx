@@ -1,4 +1,5 @@
 import React from 'react';
+import { useFinance } from '../../context/FinanceContext';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, ReceiptText, BarChart3, Settings, FolderOpen, PiggyBank } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -6,14 +7,34 @@ import { cn } from '../../lib/utils';
 import { AmaraLogoIcon } from '../AmaraLogo';
 
 export function Sidebar() {
-  const links = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-    { name: 'Movimientos', path: '/transactions', icon: ReceiptText },
-    { name: 'Estadísticas', path: '/stats', icon: BarChart3 },
-    { name: 'Categorías', path: '/categories', icon: FolderOpen },
-    { name: 'Ahorros', path: '/bolsillos', icon: PiggyBank },
-    { name: 'Ajustes', path: '/settings', icon: Settings },
-  ];
+  const { activeProfile } = useFinance();
+  const links =
+  activeProfile?.profile_type === "business_continuous"
+    ? [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Movimientos', path: '/transactions', icon: ReceiptText },
+        { name: 'Estadísticas', path: '/stats', icon: BarChart3 },
+        { name: 'Productos y Servicios', path: '/products-services', icon: FolderOpen },
+        { name: 'Ajustes', path: '/settings', icon: Settings },
+      ]
+
+  : activeProfile?.profile_type === "business_productive"
+    ? [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Movimientos', path: '/transactions', icon: ReceiptText },
+        { name: 'Estadísticas', path: '/stats', icon: BarChart3 },
+        { name: 'Inversión', path: '/categories', icon: FolderOpen },
+        { name: 'Ajustes', path: '/settings', icon: Settings },
+      ]
+
+  : [
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+        { name: 'Movimientos', path: '/transactions', icon: ReceiptText },
+        { name: 'Estadísticas', path: '/stats', icon: BarChart3 },
+        { name: 'Categorías', path: '/categories', icon: FolderOpen },
+        { name: 'Ahorros', path: '/bolsillos', icon: PiggyBank },
+        { name: 'Ajustes', path: '/settings', icon: Settings },
+      ];
 
   return (
     <>

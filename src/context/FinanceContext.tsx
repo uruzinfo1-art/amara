@@ -34,7 +34,13 @@ interface FinanceContextType {
   updateFixedExpense: (id: string | number, fixedExpense: Partial<FixedExpense>) => Promise<void>;
   addMonthlyCycle: (cycle: Omit<MonthlyCycle, 'id' | 'closed_at' | 'user_id'>) => Promise<void>;
   resetApp: () => Promise<void>;
-  createProfile: (name: string) => Promise<any>;
+  createProfile: (
+  name: string,
+  profileType?:
+    | 'home'
+    | 'business_continuous'
+    | 'business_productive'
+) => Promise<any>;
   renameProfile: (id: number, name: string) => Promise<void>;
 }
 
@@ -1163,7 +1169,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setStorageItem(`snapfinance_monthly_cycles_${user.id}`, JSON.stringify(newCycles));
     }
   };
-const createProfile = async (name: string) => {
+const createProfile = async (
+  name: string,
+  profileType:
+    | 'home'
+    | 'business_continuous'
+    | 'business_productive' = 'home'
+) => {
   if (!user || !supabase) return;
 
   const { data, error } = await supabase
@@ -1172,7 +1184,7 @@ const createProfile = async (name: string) => {
 {
   user_id: user.id,
   name,
-  profile_type: 'home',
+  profile_type: profileType,
   initial_investment: 0,
   is_default: profiles.length === 0
 }

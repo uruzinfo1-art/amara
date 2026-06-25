@@ -10,12 +10,20 @@ import { Plus, Search, Edit2, Trash2, X, TrendingUp, TrendingDown, PiggyBank, Al
 import { format, isToday, isYesterday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TransactionModal } from '../components/TransactionModal';
+import { TransactionModal as BusinessTransactionModal } from "../components/BusinessTransactionModal";
 import { BulkFixedExpensesModal } from '../components/BulkFixedExpensesModal';
 import { TipoTransaccion } from '../types';
 import { RefreshCw } from 'lucide-react';
 
 export function Transactions() {
-  const { movimientos, categorias, bolsillos, settings, deleteMovimiento } = useFinance();
+  const {
+  movimientos,
+  categorias,
+  bolsillos,
+  settings,
+  deleteMovimiento,
+  activeProfile
+} = useFinance();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isBulkOpen, setIsBulkOpen] = useState(() => {
@@ -28,6 +36,7 @@ export function Transactions() {
   const sortedMovimientos = [...movimientos].sort((a,b) => new Date(b.fecha?.includes('T') ? b.fecha : `${b.fecha || ''}T12:00:00`).getTime() - new Date(a.fecha?.includes('T') ? a.fecha : `${a.fecha || ''}T12:00:00`).getTime());
 
   const filtered = sortedMovimientos.filter(m => {
+    
     if (isExpenseConfig(m)) return false;
     
     // Hide all savings withdrawals (retiros) entirely from UI per rules
@@ -232,12 +241,16 @@ export function Transactions() {
             className="rounded-[18px] bg-card/95 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:bg-white/10 text-foreground px-4 h-12 flex items-center gap-3.5 transition-all transform hover:scale-105 active:scale-95 justify-between w-44"
             onClick={() => { setInitialTipo('ingreso'); setEditingMovimiento(null); setIsModalOpen(true); setIsFabMenuOpen(false); }}
           >
-            <span className="font-semibold text-[15px]">Ingreso</span>
+            <span className="font-semibold text-[15px]">
+  {activeProfile?.profile_type === "business_continuous"
+    ? "Venta"
+    : "Ingreso"}
+</span>
             <div className="bg-[#00e676]/20 text-[#00e676] p-1.5 rounded-full shadow-inner">
               <TrendingUp className="w-4 h-4" />
             </div>
           </Button>
-
+       {activeProfile?.profile_type === "home" && (
           <Button 
             variant="outline"
             className="rounded-[18px] bg-card/95 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:bg-white/10 text-foreground px-4 h-12 flex items-center gap-3.5 transition-all transform hover:scale-105 active:scale-95 justify-between w-44"
@@ -248,6 +261,7 @@ export function Transactions() {
               <RefreshCw className="w-4 h-4" />
             </div>
           </Button>
+          )}
         </div>
 
         <Button 
@@ -262,12 +276,21 @@ export function Transactions() {
         </Button>
       </div>
 
-      <TransactionModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        movimiento={editingMovimiento} 
-        initialTipo={initialTipo}
-      />
+      {activeProfile?.profile_type === "home" ? (
+  <TransactionModal
+    isOpen={isModalOpen}
+    onClose={() => setIsModalOpen(false)}
+    movimiento={editingMovimiento}
+    initialTipo={initialTipo}
+  />
+) : (
+  <BusinessTransactionModal
+    isOpen={isModalOpen}
+    onClose={() => setIsModalOpen(false)}
+    movimiento={editingMovimiento}
+    initialTipo={initialTipo}
+  />
+)}
 
       <BulkFixedExpensesModal
         isOpen={isBulkOpen}

@@ -8,7 +8,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { Layout } from './components/layout/Layout';
-import { Dashboard } from './pages/Dashboard';
+import Dashboard from './pages/Dashboard';
 import { Transactions } from './pages/Transactions';
 import { Stats } from './pages/Stats';
 import { Settings } from './pages/Settings';
@@ -16,6 +16,7 @@ import { AuthPage } from './pages/Auth';
 import ResetPassword from './pages/ResetPassword';
 import { Categories } from './pages/Categories';
 import { Bolsillos } from './pages/Bolsillos';
+import ProductsServices from './pages/ProductsServices';
 import { Onboarding } from './components/Onboarding';
 import Tutorial from './pages/Tutorial';
 
@@ -86,6 +87,13 @@ function AppRoutes() {
             </Layout>
           </ProtectedRoute>
         } />
+        <Route path="/products-services" element={
+  <ProtectedRoute>
+    <Layout>
+      <ProductsServices />
+    </Layout>
+  </ProtectedRoute>
+} />
         <Route path="/settings" element={
           <ProtectedRoute>
             <Layout>

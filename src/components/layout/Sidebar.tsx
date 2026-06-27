@@ -10,13 +10,13 @@ export function Sidebar() {
   const { activeProfile } = useFinance();
   const links =
   activeProfile?.profile_type === "business_continuous"
-    ? [
-        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-        { name: 'Movimientos', path: '/transactions', icon: ReceiptText },
-        { name: 'Estadísticas', path: '/stats', icon: BarChart3 },
-        { name: 'Productos y Servicios', path: '/products-services', icon: FolderOpen },
-        { name: 'Ajustes', path: '/settings', icon: Settings },
-      ]
+  ? [
+      { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+{ name: 'Movimientos', path: '/transactions', icon: ReceiptText },
+{ name: 'Productos y Servicios', path: '/products-services', icon: FolderOpen },
+{ name: 'Salud', path: '/business-health', icon: BarChart3 },
+{ name: 'Ajustes', path: '/settings', icon: Settings },
+    ]
 
   : activeProfile?.profile_type === "business_productive"
     ? [

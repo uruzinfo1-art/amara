@@ -66,6 +66,7 @@ export interface Movimiento {
   user_id?: string;
   profile_id?: number;
   subtipo?: string;
+  cantidad?: number;
 }
 
 export interface UserSettings {

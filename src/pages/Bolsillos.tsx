@@ -379,7 +379,7 @@ export function Bolsillos() {
                   Cancelar
                 </Button>
                 <Button 
-                  variant="destructive" 
+                  variant="outline"
                   className="flex-1 rounded-xl h-12 bg-rose-500 hover:bg-rose-600 disabled:opacity-50"
                   onClick={confirmDelete}
                   disabled={deleteModal.isLoading}

@@ -35,8 +35,6 @@ const services = businessItems.filter(
   const [saleType, setSaleType] =
 useState<"product" | "service">("product");
 
-const [selectedItem, setSelectedItem] =
-useState("");
   const [selectedBolsilloId, setSelectedBolsilloId] = useState<string>('');
   const [monto, setMonto] = useState('');
   const [categoria, setCategoria] = useState<string>('');
@@ -154,7 +152,45 @@ useState("");
         : (isSavingExpense ? 'ahorro' : 'gasto_real');
 
       let actualCategoria = categoria;
-      let finalDescripcion = descripcion || categoria;
+let finalDescripcion = descripcion;
+
+// Si es una venta, la categoría debe indicar qué tipo de venta es
+if (contexto === "ingreso") {
+  actualCategoria =
+    saleType === "product"
+      ? "Venta de producto"
+      : "Venta de servicio";
+}
+
+if (!finalDescripcion) {
+
+  if (contexto === "ingreso") {
+
+    if (saleType === "product") {
+
+      const product = products.find(
+        (p: any) => String(p.id) === String(selectedItemId)
+      );
+
+      finalDescripcion = product?.name || "Venta";
+
+    } else {
+
+      const service = services.find(
+        (s: any) => String(s.id) === String(selectedItemId)
+      );
+
+      finalDescripcion = service?.name || "Servicio";
+
+    }
+
+  } else {
+
+    finalDescripcion = categoria;
+
+  }
+
+}
       
 
       if (isSavingExpense) {
@@ -169,12 +205,13 @@ useState("");
       }
 
       const data = {
-        tipo: actualTipo as TipoTransaccion,
-        monto: Number(monto),
-        categoria: actualCategoria,
-        descripcion: finalDescripcion,
-        fecha: movimiento ? fecha : new Date().toISOString()
-      };
+  tipo: actualTipo as TipoTransaccion,
+  monto: Number(monto),
+  categoria: actualCategoria,
+  descripcion: finalDescripcion,
+  cantidad: contexto === "ingreso" ? quantity : undefined,
+  fecha: movimiento ? fecha : new Date().toISOString()
+};
 
       if (movimiento) {
         // If old transaction was savings, subtract from old pocket
@@ -228,6 +265,47 @@ if (saleType === "product") {
             await updateBolsillo(newB.id, { saldo: newB.saldo + data.monto });
           }
         }
+        
+if (contexto === "ingreso" && saleType === "product") {
+
+  const product = products.find(
+    (p: any) => p.id === selectedItemId
+  );
+
+  if (!product) {
+    alert("Producto no encontrado.");
+    setLoading(false);
+    return;
+  }
+
+  if (quantity > product.stock) {
+    alert(
+      `Solo hay ${product.stock} unidades disponibles.`
+    );
+    setLoading(false);
+    return;
+  }
+
+  const updatedItems = businessItems.map((item: any) => {
+
+    if (item.id === selectedItemId) {
+
+      return {
+        ...item,
+        stock: item.stock - quantity,
+      };
+
+    }
+
+    return item;
+
+  });
+  localStorage.setItem(
+    "products_services",
+    JSON.stringify(updatedItems)
+  );
+
+}
         await addMovimiento(data);
       }
       

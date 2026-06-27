@@ -266,7 +266,7 @@ export function Categories() {
                   Cancelar
                 </Button>
                 <Button 
-                  variant="destructive" 
+                  variant="outline"
                   onClick={confirmDelete}
                   disabled={isDeleting}
                   className="bg-rose-500 hover:bg-rose-600 text-white"

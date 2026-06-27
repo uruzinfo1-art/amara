@@ -17,6 +17,7 @@ import ResetPassword from './pages/ResetPassword';
 import { Categories } from './pages/Categories';
 import { Bolsillos } from './pages/Bolsillos';
 import ProductsServices from './pages/ProductsServices';
+import BusinessHealth from './pages/BusinessHealth';
 import { Onboarding } from './components/Onboarding';
 import Tutorial from './pages/Tutorial';
 
@@ -94,6 +95,16 @@ function AppRoutes() {
     </Layout>
   </ProtectedRoute>
 } />
+<Route
+  path="/business-health"
+  element={
+    <ProtectedRoute>
+      <Layout>
+        <BusinessHealth />
+      </Layout>
+    </ProtectedRoute>
+  }
+/>
         <Route path="/settings" element={
           <ProtectedRoute>
             <Layout>

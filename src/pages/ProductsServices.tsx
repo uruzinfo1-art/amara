@@ -1,27 +1,27 @@
 import { Card, CardContent } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import React from "react";
+import { useFinance } from "../context/FinanceContext";
 
 export default function ProductsServices() {
+  const { activeProfile } = useFinance();
+  const storageKey = `products_services_${activeProfile?.id ?? 0}`;
   const [showModal, setShowModal] = React.useState(false);
   const [type, setType] = React.useState<"product" | "service" | null>(null);
   const [name, setName] = React.useState("");
   const [stock, setStock] = React.useState(0);
-  const [items, setItems] = React.useState<any[]>(() => {
-  const saved = localStorage.getItem("products_services");
-  return saved ? JSON.parse(saved) : [];
-});
+  const [items, setItems] = React.useState<any[]>([]);
 
 const [editingId, setEditingId] = React.useState<string | null>(null);
   
 React.useEffect(() => {
+  localStorage.setItem(storageKey, JSON.stringify(items));
+}, [items, storageKey]);
 
-  localStorage.setItem(
-    "products_services",
-    JSON.stringify(items)
-  );
-
-}, [items]);
+React.useEffect(() => {
+  const saved = localStorage.getItem(storageKey);
+  setItems(saved ? JSON.parse(saved) : []);
+}, [storageKey]);
 const products = items.filter(
   (item) => item.type === "product"
 );

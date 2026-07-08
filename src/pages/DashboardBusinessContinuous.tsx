@@ -23,16 +23,17 @@ export default function DashboardBusinessContinuous() {
   console.log("TIPO PERFIL:", activeProfile?.profile_type);
  
   const navigate = useNavigate();
+  const capitalKey = `capitalManual_${activeProfile?.id ?? 0}`;
   const [showBalanceModal, setShowBalanceModal] = React.useState(false);
   const [touchStartY, setTouchStartY] = React.useState<number | null>(null);
   const [touchCurrentY, setTouchCurrentY] = React.useState<number | null>(null);
   const [showProfileMenu, setShowProfileMenu] = React.useState(false);
   const [showCreateProfileModal, setShowCreateProfileModal] = React.useState(false);
-  const [capitalManual, setCapitalManual] = React.useState<number>(() => {
-  const guardado = localStorage.getItem("capitalManual");
-
-  return guardado ? Number(guardado) : 0;
-});
+  const [capitalManual, setCapitalManual] = React.useState<number>(0);
+  React.useEffect(() => {
+  const guardado = localStorage.getItem(capitalKey);
+  setCapitalManual(guardado ? Number(guardado) : 0);
+}, [capitalKey]);
   
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -335,7 +336,7 @@ onClick={async () => {
     const nuevoCapital = capitalManual + valor;
 
 setCapitalManual(nuevoCapital);
-localStorage.setItem("capitalManual", nuevoCapital.toString());
+localStorage.setItem(capitalKey, nuevoCapital.toString());
 
      const movimientoInicial = {
   

@@ -18,7 +18,14 @@ interface TransactionModalProps {
 type ContextType = 'gasto' | 'ingreso';
 
 export function TransactionModal({ isOpen, onClose, movimiento, initialTipo = 'gasto' }: TransactionModalProps) {
-  const { addMovimiento, updateMovimiento, categorias, addFixedExpense, bolsillos, updateBolsillo } = useFinance();
+  const {
+  addMovimiento,
+  updateMovimiento,
+  categorias,
+  addFixedExpense,
+  bolsillos,
+  updateBolsillo
+} = useFinance();
   const allCategories = categorias;
 
   const [contexto, setContexto] = useState<ContextType>(initialTipo);

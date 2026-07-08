@@ -18,10 +18,20 @@ interface TransactionModalProps {
 type ContextType = 'gasto' | 'ingreso';
 
 export function TransactionModal({ isOpen, onClose, movimiento, initialTipo = 'gasto' }: TransactionModalProps) {
-  const { addMovimiento, updateMovimiento, categorias, addFixedExpense, bolsillos, updateBolsillo } = useFinance();
+  const {
+  addMovimiento,
+  updateMovimiento,
+  categorias,
+  addFixedExpense,
+  bolsillos,
+  updateBolsillo,
+  activeProfile
+} = useFinance();
   const allCategories = categorias;
   const businessItems = JSON.parse(
-  localStorage.getItem("products_services") || "[]"
+  localStorage.getItem(
+  `products_services_${activeProfile?.id ?? 0}`
+) || "[]"
 );
 
 const products = businessItems.filter(
@@ -209,7 +219,7 @@ if (!finalDescripcion) {
   monto: Number(monto),
   categoria: actualCategoria,
   descripcion: finalDescripcion,
-  cantidad: contexto === "ingreso" ? quantity : undefined,
+  cantidad: contexto === "ingreso" ? quantity : 0,
   fecha: movimiento ? fecha : new Date().toISOString()
 };
 
@@ -252,9 +262,9 @@ if (saleType === "product") {
   });
 
   localStorage.setItem(
-    "products_services",
-    JSON.stringify(updatedItems)
-  );
+  `products_services_${activeProfile?.id ?? 0}`,
+  JSON.stringify(updatedItems)
+);
 }
         await updateMovimiento(movimiento.id, data);
       } else {
@@ -301,9 +311,9 @@ if (contexto === "ingreso" && saleType === "product") {
 
   });
   localStorage.setItem(
-    "products_services",
-    JSON.stringify(updatedItems)
-  );
+  `products_services_${activeProfile?.id ?? 0}`,
+  JSON.stringify(updatedItems)
+);
 
 }
         await addMovimiento(data);

@@ -5,7 +5,7 @@ import { formatCurrency, formatCompactCurrency, isExpenseConfig, isIncomeReal, i
 import { getCategoryStyle } from '../lib/categoryUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { ArrowUpRight, ArrowDownRight, Wallet, PieChart as LucidePieChart, Coins, Activity } from 'lucide-react';
-import { format, isThisMonth, subMonths } from 'date-fns';
+import { format, isToday, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -34,6 +34,8 @@ export default function DashboardBusinessContinuous() {
   const guardado = localStorage.getItem(capitalKey);
   setCapitalManual(guardado ? Number(guardado) : 0);
 }, [capitalKey]);
+const [selectedPeriod, setSelectedPeriod] = React.useState("today");
+const [showPeriodMenu, setShowPeriodMenu] = React.useState(false);
   
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -122,7 +124,16 @@ export default function DashboardBusinessContinuous() {
   }, [movimientos, settings, loading, monthlyCycles]);
 
   const now = new Date();
-  const thisMonthMovimientos = movimientos.filter(m => !isExpenseConfig(m) && isThisMonth(new Date(m.fecha)));
+  
+  const hoy = new Date().toISOString().slice(0, 10);
+
+const todayMovimientos = movimientos.filter((m) => {
+  if (isExpenseConfig(m)) return false;
+
+  return String(m.fecha).slice(0, 10) === hoy;
+});
+console.log("TODOS LOS MOVIMIENTOS", movimientos);
+console.log("MOVIMIENTOS DE HOY", todayMovimientos);
   const lastMonth = subMonths(now, 1);
   const prevMonthMovimientos = movimientos.filter(m => {
     if (isExpenseConfig(m)) return false;
@@ -130,23 +141,23 @@ export default function DashboardBusinessContinuous() {
     return d.getMonth() === lastMonth.getMonth() && d.getFullYear() === lastMonth.getFullYear();
   });
   
-  const ingresosMes = thisMonthMovimientos
+  const ingresosMes = todayMovimientos
+  .filter(isIncomeReal)
+  .reduce((acc, curr) => acc + curr.monto, 0);
+  const capitalMovimientos = movimientos
   .filter(
     m =>
-      isIncomeReal(m) &&
-      m.categoria !== 'Capital inicial'
+      m.categoria === "Capital inicial"
   )
   .reduce((acc, curr) => acc + curr.monto, 0);
 
-  const gastosMes = thisMonthMovimientos
+  const gastosMes = todayMovimientos
     .filter(isExpenseReal)
     .reduce((acc, curr) => acc + curr.monto, 0);
     const gananciaHoy = ingresosMes - gastosMes;
 
   const disponibleMes =
-capitalManual
-+ ingresosMes
-- gastosMes;
+  ingresosMes - gastosMes;
   
   const ingresosPrev = prevMonthMovimientos
     .filter(isIncomeReal)
@@ -397,8 +408,7 @@ Ventas del día
               {formatCurrency(ingresosMes, settings.currency)}
             </div>
             <div className="flex items-center mt-1.5 sm:mt-2">
-              {renderTrend(ingresosTrend, 'text-emerald-400')}
-            </div>
+                          </div>
           </div>
         </Card>
 
@@ -414,9 +424,7 @@ Ventas del día
             <div className="text-[13px] sm:text-[17px] font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/80 break-words leading-tight">
               {formatCurrency(gastosMes, settings.currency)}
             </div>
-            <div className="flex items-center mt-1.5 sm:mt-2">
-              {renderTrend(gastosTrend, 'text-rose-400')}
-            </div>
+            
           </div>
         </Card>
       </div>
@@ -527,8 +535,8 @@ Ventas del día
           </CardHeader>
           <CardContent>
               <div className="space-y-4">
-               {movimientos
-                 .filter(m => {
+               {todayMovimientos
+    .filter(m => {
                    if (isExpenseConfig(m)) return false;
                    if (m.tipo === 'retiro_ahorro' || m.categoria?.startsWith('retiro_bolsillo_')) return false;
                    if (m.categoria?.startsWith('bolsillo_') && m.tipo !== 'ahorro') return false;
@@ -560,7 +568,7 @@ Ventas del día
                    </div>
                  </div>
                )})}
-               {movimientos.filter(m => {
+               {todayMovimientos.filter(m => {
                     if (isExpenseConfig(m)) return false;
                     if (m.tipo === 'retiro_ahorro' || m.categoria?.startsWith('retiro_bolsillo_')) return false;
                     if (m.categoria?.startsWith('bolsillo_') && m.tipo !== 'ahorro') return false;

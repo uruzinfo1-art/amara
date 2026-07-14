@@ -19,13 +19,11 @@ export function Sidebar() {
     ]
 
   : activeProfile?.profile_type === "business_productive"
-    ? [
-        { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-        { name: 'Movimientos', path: '/transactions', icon: ReceiptText },
-        { name: 'Estadísticas', path: '/stats', icon: BarChart3 },
-        { name: 'Inversión', path: '/categories', icon: FolderOpen },
-        { name: 'Ajustes', path: '/settings', icon: Settings },
-      ]
+  ? [
+      { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+      { name: 'Movimientos', path: '/transactions', icon: ReceiptText },
+      { name: 'Ajustes', path: '/settings', icon: Settings },
+    ]
 
   : [
         { name: 'Dashboard', path: '/', icon: LayoutDashboard },

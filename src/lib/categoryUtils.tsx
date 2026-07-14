@@ -278,7 +278,10 @@ export function enrichMovimiento(mov: any, categorias: any[], bolsillos: any[]) 
   // ==========================
   // VENTAS
   // ==========================
-  else if (mov.tipo === "ingreso") {
+  else if (
+    mov.tipo === "ingreso" &&
+    safeCategoria !== "ingreso"
+) {
 
     if (safeCategoria === "Venta de producto") {
 
@@ -329,6 +332,54 @@ export function enrichMovimiento(mov: any, categorias: any[], bolsillos: any[]) 
   // ==========================
   // GASTOS
   // ==========================
+  // ==========================
+// PERFIL PRODUCTIVO
+// ==========================
+else if (
+    safeCategoria === "inversion" ||
+    safeCategoria === "gasto" ||
+    safeCategoria === "ingreso"
+) {
+
+    if (safeCategoria === "inversion") {
+        catStyle = {
+            bgClass: "bg-violet-500/10",
+            colorClass: "text-violet-400",
+            icon: getCategoryIcon("Wallet"),
+            hexColor: "#8b5cf6"
+        };
+
+        CatIcon = catStyle.icon;
+        displayName = safeDescripcion || "Inversión";
+        secondaryInfo = "Inversión";
+    }
+
+    else if (safeCategoria === "gasto") {
+        catStyle = {
+            bgClass: "bg-rose-500/10",
+            colorClass: "text-rose-400",
+            icon: getCategoryIcon("Receipt"),
+            hexColor: "#f43f5e"
+        };
+
+        CatIcon = catStyle.icon;
+        displayName = safeDescripcion || "Gasto";
+        secondaryInfo = "Gasto";
+    }
+
+    else if (safeCategoria === "ingreso") {
+        catStyle = {
+            bgClass: "bg-emerald-500/10",
+            colorClass: "text-emerald-400",
+            icon: getCategoryIcon("Coins"),
+            hexColor: "#10b981"
+        };
+
+        CatIcon = catStyle.icon;
+        displayName = safeDescripcion || "Ingreso";
+        secondaryInfo = "Ingreso";
+    }
+}
   else {
 
     displayName = safeDescripcion || safeCategoria;

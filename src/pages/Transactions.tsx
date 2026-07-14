@@ -10,6 +10,7 @@ import { Plus, Search, Edit2, Trash2, X, TrendingUp, TrendingDown, PiggyBank, Al
 import { format, isToday, isYesterday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TransactionModal } from '../components/TransactionModal';
+import { ProductiveTransactionModal } from "../components/ProductiveTransactionModal";
 import { TransactionModal as BusinessTransactionModal } from "../components/BusinessTransactionModal";
 import { BulkFixedExpensesModal } from '../components/BulkFixedExpensesModal';
 import { TipoTransaccion } from '../types';
@@ -32,6 +33,11 @@ export function Transactions() {
   const [editingMovimiento, setEditingMovimiento] = useState<Movimiento | null>(null);
   const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
   const [initialTipo, setInitialTipo] = useState<TipoTransaccion>('gasto');
+  const [initialMovementType, setInitialMovementType] = useState<
+  "inversion" |
+  "gasto" |
+  "ingreso"
+>("gasto");
 
   const sortedMovimientos = [...movimientos].sort((a,b) => new Date(b.fecha?.includes('T') ? b.fecha : `${b.fecha || ''}T12:00:00`).getTime() - new Date(a.fecha?.includes('T') ? a.fecha : `${a.fecha || ''}T12:00:00`).getTime());
 
@@ -225,6 +231,7 @@ export function Transactions() {
             isFabMenuOpen ? "opacity-100 scale-100 translate-y-0 pointer-events-auto" : "opacity-0 scale-90 translate-y-4 pointer-events-none absolute bottom-16"
           )}
         >
+          {activeProfile?.profile_type !== "business_productive" && (
           <Button 
             variant="outline"
             className="rounded-[18px] bg-card/95 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:bg-white/10 text-foreground px-4 h-12 flex items-center gap-3.5 transition-all transform hover:scale-105 active:scale-95 justify-between w-44"
@@ -235,7 +242,8 @@ export function Transactions() {
               <TrendingDown className="w-4 h-4" />
             </div>
           </Button>
-
+          )}
+{activeProfile?.profile_type !== "business_productive" && (
           <Button 
             variant="outline"
             className="rounded-[18px] bg-card/95 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:bg-white/10 text-foreground px-4 h-12 flex items-center gap-3.5 transition-all transform hover:scale-105 active:scale-95 justify-between w-44"
@@ -250,11 +258,61 @@ export function Transactions() {
               <TrendingUp className="w-4 h-4" />
             </div>
           </Button>
+          )}
+          {activeProfile?.profile_type === "business_productive" && (
+
+<>
+  <Button
+    variant="outline"
+    className="rounded-[18px] bg-card/95 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:bg-white/10 text-foreground px-4 h-12 flex items-center gap-3.5 transition-all transform hover:scale-105 active:scale-95 justify-between w-52"
+    onClick={() => {
+ setInitialMovementType("gasto");
+  setEditingMovimiento(null);
+  setIsModalOpen(true);
+  setIsFabMenuOpen(false);
+}}
+  >
+       
+    <span className="font-semibold text-[15px]">
+      Gasto
+    </span>
+
+    <div className="bg-rose-500/20 text-rose-400 p-1.5 rounded-full shadow-inner">
+      <TrendingDown className="w-4 h-4" />
+    </div>
+  </Button>
+
+  <Button
+    variant="outline"
+    className="rounded-[18px] bg-card/95 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:bg-white/10 text-foreground px-4 h-12 flex items-center gap-3.5 transition-all transform hover:scale-105 active:scale-95 justify-between w-52"
+    onClick={() => {
+  setInitialMovementType("ingreso");
+  setEditingMovimiento(null);
+  setIsModalOpen(true);
+  setIsFabMenuOpen(false);
+}}
+  >
+    <span className="font-semibold text-[15px]">
+      Ingreso
+    </span>
+
+    <div className="bg-[#00e676]/20 text-[#00e676] p-1.5 rounded-full shadow-inner">
+      <TrendingUp className="w-4 h-4" />
+    </div>
+  </Button>
+</>
+
+)}
        {activeProfile?.profile_type === "home" && (
           <Button 
             variant="outline"
             className="rounded-[18px] bg-card/95 backdrop-blur-xl border border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.5)] hover:bg-white/10 text-foreground px-4 h-12 flex items-center gap-3.5 transition-all transform hover:scale-105 active:scale-95 justify-between w-44"
-            onClick={() => { setIsBulkOpen(true); setIsFabMenuOpen(false); }}
+            onClick={() => {
+  setInitialMovementType("ingreso");
+  setEditingMovimiento(null);
+  setIsModalOpen(true);
+  setIsFabMenuOpen(false);
+}}
           >
             <span className="font-semibold text-[15px] text-foreground">Gastos Fijos</span>
             <div className="bg-[#FF4081]/20 text-[#FF4081] p-1.5 rounded-full shadow-inner">
@@ -270,26 +328,47 @@ export function Transactions() {
             "h-14 w-14 rounded-[20px] shadow-[0_8px_20px_rgba(0,230,118,0.25)] hover:shadow-[0_8px_25px_rgba(0,230,118,0.35)] bg-primary/95 backdrop-blur-xl hover:bg-primary border border-white/10 transition-all duration-300 z-50 text-primary-foreground",
             isFabMenuOpen ? "rotate-[135deg] bg-card hover:bg-card border-white/20 text-foreground shadow-[0_8px_25px_rgba(0,0,0,0.5)]" : "hover:scale-105 active:scale-95"
           )}
-          onClick={() => setIsFabMenuOpen(!isFabMenuOpen)}
+          onClick={() => {
+  if (activeProfile?.profile_type === "business_productive") {
+    setEditingMovimiento(null);
+    setInitialMovementType("inversion");
+    setIsModalOpen(true);
+  } else {
+    setIsFabMenuOpen(!isFabMenuOpen);
+  }
+}}
         >
           <Plus className="h-6 w-6" />
         </Button>
       </div>
 
       {activeProfile?.profile_type === "home" ? (
+
   <TransactionModal
     isOpen={isModalOpen}
     onClose={() => setIsModalOpen(false)}
     movimiento={editingMovimiento}
     initialTipo={initialTipo}
   />
-) : (
+
+) : activeProfile?.profile_type === "business_continuous" ? (
+
   <BusinessTransactionModal
     isOpen={isModalOpen}
     onClose={() => setIsModalOpen(false)}
     movimiento={editingMovimiento}
     initialTipo={initialTipo}
   />
+
+) : (
+
+  <ProductiveTransactionModal
+    isOpen={isModalOpen}
+    onClose={() => setIsModalOpen(false)}
+    movimiento={editingMovimiento}
+    initialMovementType={initialMovementType}
+  />
+
 )}
 
       <BulkFixedExpensesModal
@@ -311,6 +390,7 @@ export function Transactions() {
               <p className="text-sm text-muted-foreground">Esta acción no se puede deshacer.</p>
               
               <div className="flex w-full gap-3 pt-4">
+                
                 <Button 
                   variant="outline" 
                   className="flex-1 bg-transparent border-white/10 hover:bg-white/5 disabled:opacity-50 h-11" 

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useFinance } from '../context/FinanceContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { formatCurrency, formatCompactCurrency, isExpenseConfig, isIncomeReal, isExpenseReal, isAhorroIn, isAhorroOut, isGastoReal, isGastoAhorro } from '../lib/utils';
@@ -12,6 +12,13 @@ export function Stats() {
   const { movimientos, categorias, bolsillos, settings } = useFinance();
 
   const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now);
+  const canGoNext =
+  selectedMonth.getFullYear() < now.getFullYear() ||
+  (
+    selectedMonth.getFullYear() === now.getFullYear() &&
+    selectedMonth.getMonth() < now.getMonth()
+  );
   
   // Si no hay movimientos en absoluto, mostrar estado vacío premium
   if (movimientos.length === 0) {
@@ -52,9 +59,8 @@ export function Stats() {
     return { ingresos, gastoReal, gastoAhorro, movs };
   };
 
-  const currentStats = getStatsForDate(now);
-  const prevStats = getStatsForDate(subMonths(now, 1));
-
+  const currentStats = getStatsForDate(selectedMonth);
+const prevStats = getStatsForDate(subMonths(selectedMonth, 1));
   const calculateGrowth = (current: number, prev: number) => {
     if (prev === 0) return current > 0 ? 100 : 0;
     return ((current - prev) / prev) * 100;
@@ -66,7 +72,7 @@ export function Stats() {
 
   // Month Chart Data (Last 6 months)
   const monthData = Array.from({ length: 6 }).map((_, i) => {
-    const date = subMonths(now, i);
+const date = subMonths(selectedMonth, i);
     const stats = getStatsForDate(date);
     return {
       month: format(date, 'MMM', { locale: es }),
@@ -212,6 +218,42 @@ export function Stats() {
            <p className="text-[13px] sm:text-[15px] text-muted-foreground/80 mt-1 sm:mt-1.5 font-medium tracking-wide">
              Resumen financiero inteligente
            </p>
+           <div className="flex items-center gap-4 mt-4">
+
+  <button
+    onClick={() => setSelectedMonth(subMonths(selectedMonth, 1))}
+    className="px-3 py-1 rounded-lg bg-card border border-border hover:bg-primary/10"
+  >
+    ◀
+  </button>
+
+  <span className="font-semibold">
+    {format(selectedMonth, "MMMM yyyy", { locale: es })}
+  </span>
+
+  <button
+  disabled={!canGoNext}
+  onClick={() => {
+    if (!canGoNext) return;
+
+    setSelectedMonth(
+      new Date(
+        selectedMonth.getFullYear(),
+        selectedMonth.getMonth() + 1,
+        1
+      )
+    );
+  }}
+  className={`px-3 py-1 rounded-lg border transition ${
+    canGoNext
+      ? "bg-card border-border hover:bg-primary/10"
+      : "opacity-40 cursor-not-allowed"
+  }`}
+>
+  ▶
+</button>
+
+</div>
          </div>
       </header>
 

@@ -6,6 +6,8 @@ import { useFinance } from "../context/FinanceContext";
 export default function ProductsServices() {
   const { activeProfile } = useFinance();
   const storageKey = `products_services_${activeProfile?.id ?? 0}`;
+  console.log("storageKey:", storageKey);
+console.log("activeProfile:", activeProfile);
   const [showModal, setShowModal] = React.useState(false);
   const [type, setType] = React.useState<"product" | "service" | null>(null);
   const [name, setName] = React.useState("");
@@ -13,14 +15,48 @@ export default function ProductsServices() {
   const [items, setItems] = React.useState<any[]>([]);
 
 const [editingId, setEditingId] = React.useState<string | null>(null);
+const [loaded, setLoaded] = React.useState(false);
   
 React.useEffect(() => {
+  if (!loaded) return;
+
+  console.log("Guardando:", items);
+
   localStorage.setItem(storageKey, JSON.stringify(items));
-}, [items, storageKey]);
+}, [items, storageKey, loaded]);
 
 React.useEffect(() => {
   const saved = localStorage.getItem(storageKey);
-  setItems(saved ? JSON.parse(saved) : []);
+  console.log("saved:", localStorage.getItem(storageKey));
+console.log("oldData:", localStorage.getItem("products_services"));
+
+  const parsedSaved = saved ? JSON.parse(saved) : [];
+
+if (parsedSaved.length > 0) {
+  setItems(parsedSaved);
+  setLoaded(true);
+  return;
+}
+
+  // Migración desde la versión antigua
+  const oldData = localStorage.getItem("products_services");
+
+  if (oldData) {
+    const parsed = JSON.parse(oldData);
+
+    setItems(parsed);
+
+    localStorage.setItem(storageKey, oldData);
+
+    localStorage.removeItem("products_services");
+    setLoaded(true);
+
+    console.log("✅ Productos migrados al perfil.");
+    return;
+  }
+
+  setItems([]);
+setLoaded(true);
 }, [storageKey]);
 const products = items.filter(
   (item) => item.type === "product"

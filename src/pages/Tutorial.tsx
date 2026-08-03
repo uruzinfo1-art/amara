@@ -13,9 +13,20 @@ import nuevoAhorroImg from '../assets/tutorial-completo/nuevo ahorro.jpeg';
 import estadisticasImg from '../assets/tutorial-completo/estadisticas.jpeg';
 import ajustesImg from '../assets/tutorial-completo/ajustes.jpeg';
 import ajustes2Img from '../assets/tutorial-completo/ajustes2.jpeg';
+import perfilesImg from '../assets/tutorial-completo/perfiles.png';
+import perfil1Img from '../assets/tutorial-completo/perfil1.jpeg';
+import productivoDashImg from "../assets/tutorial-completo/productivo dash.jpeg";
+import productivoMovimientosImg from "../assets/tutorial-completo/productivo movimientos.jpeg";
+import continuoDashImg from "../assets/tutorial-completo/continuo dash.jpeg";
+import continuoMovimientosImg from "../assets/tutorial-completo/continuo movimientos.jpeg";
+import continuoHealthImg from "../assets/tutorial-completo/continuo health.jpeg";
+import continuoPysImg from "../assets/tutorial-completo/continuo pys.jpeg";
+
 export default function Tutorial() {
+  const params = new URLSearchParams(window.location.hash.split("?")[1]);
+const tutorialType = params.get("type") || "home";
     const [step, setStep] = useState(0);
-    const tutorialSteps = [
+    let tutorialSteps = [
       {
         image: dashboardImg,
         title: 'Disponible del mes',
@@ -29,6 +40,18 @@ export default function Tutorial() {
         subtitle: 'Todo lo que has recibido',
         text: 'Aquí se muestra el total de dinero que has recibido durante el período actual.'
       },
+      {
+    image: perfilesImg,
+    title: 'Perfiles',
+    subtitle: 'Administra varios perfiles',
+    text: 'Puedes crear un perfil para tu hogar y perfiles independientes para cada negocio. Cada uno mantiene su información totalmente separada.'
+},
+{
+    image: perfil1Img,
+    title: 'Nuevo perfil',
+    subtitle: 'Elige el tipo correcto',
+    text: 'Al crear un perfil podrás escoger entre Hogar, Negocio de Flujo Continuo o Negocio de Ciclo Productivo según tus necesidades.'
+},
 
       {
         image: dashboardImg,
@@ -46,6 +69,19 @@ export default function Tutorial() {
           indicatorBottom: 5,
           indicatorRight: 1
       },
+      {
+    image: perfilesImg,
+    title: 'Perfiles',
+    subtitle: 'Administra varios perfiles',
+    text: 'Desde aquí puedes cambiar entre tus perfiles personales y de negocio o crear uno nuevo. Cada perfil mantiene su información completamente independiente.'
+},
+
+{
+    image: perfil1Img,
+    title: 'Nuevo perfil',
+    subtitle: 'Escoge el tipo adecuado',
+    text: 'AMARA permite crear perfiles para Hogar, Negocio de Flujo Continuo o Negocio de Ciclo Productivo. Elige el que mejor se adapte a la forma en que administras tu dinero.'
+},
 
       {
         image: gastosFijosImg,
@@ -215,6 +251,94 @@ export default function Tutorial() {
         text: 'Ahora conoces las principales funciones de AMARA. Comienza registrando tus gastos fijos y mantén tus finanzas organizadas.'
       }
     ];
+   if (tutorialType === "productivo") {
+  tutorialSteps = [
+
+    {
+      image: productivoDashImg,
+      title: "Bienvenido",
+      subtitle: "Negocio Productivo",
+      text: "Este perfil está diseñado para negocios donde primero se invierte dinero y después se recupera con la venta del producto."
+    },
+
+    {
+      image: productivoDashImg,
+      title: "Dashboard",
+      subtitle: "Estado del negocio",
+      text: "Aquí encontrarás el resumen financiero de tu negocio, el capital invertido y el estado general de la producción."
+    },
+
+    {
+      image: productivoMovimientosImg,
+      title: "Movimientos",
+      subtitle: "Registra toda la actividad",
+      text: "Aquí registrarás compras de insumos, mano de obra, ventas y cualquier movimiento económico del negocio."
+    },
+
+    {
+      image: productivoMovimientosImg,
+      title: "Recuperación del capital",
+      subtitle: "Control de la inversión",
+      text: "AMARA calcula cuánto capital ya recuperaste y cuánto sigue invertido en el ciclo productivo."
+    },
+
+    {
+      image: productivoDashImg,
+      title: "¡Todo listo!",
+      subtitle: "Comienza a administrar",
+      text: "Ya conoces las funciones principales del perfil de Negocio Productivo."
+    }
+
+  ];
+}
+
+if (tutorialType === "continuo") {
+  tutorialSteps = [
+
+    {
+      image: continuoDashImg,
+      title: "Bienvenido",
+      subtitle: "Negocio de Flujo Continuo",
+      text: "Este perfil está pensado para tiendas, restaurantes, cafeterías, impresión 3D y cualquier negocio con ventas diarias."
+    },
+
+    {
+      image: continuoDashImg,
+      title: "Dashboard",
+      subtitle: "Resumen del negocio",
+      text: "Consulta rápidamente ventas, gastos, utilidad y el estado general del negocio."
+    },
+
+    {
+      image: continuoMovimientosImg,
+      title: "Movimientos",
+      subtitle: "Registra tus operaciones",
+      text: "Aquí registrarás compras, ventas, gastos y todos los movimientos diarios."
+    },
+
+    {
+      image: continuoPysImg,
+      title: "Pérdidas y Ganancias",
+      subtitle: "Resultado financiero",
+      text: "Aquí encontrarás todos los productos y servicios que ofrece tu negocio. Desde esta sección podrás administrarlos, editarlos y mantener actualizada la información para registrar correctamente tus ventas y movimientos."
+    },
+
+    {
+      image: continuoHealthImg,
+      title: "Salud del negocio",
+      subtitle: "Indicadores inteligentes",
+      text: "AMARA analiza automáticamente el comportamiento financiero y te muestra la salud de tu negocio."
+    },
+
+    {
+      image: continuoDashImg,
+      title: "¡Todo listo!",
+      subtitle: "Comienza a trabajar",
+      text: "Ya conoces las funciones principales del perfil de Flujo Continuo."
+    }
+
+  ];
+}
   return (
     <div className="relative">
     {/* Zona izquierda */}
@@ -256,7 +380,7 @@ export default function Tutorial() {
       )}
 
       <div className={`absolute left-8 right-8 z-10 bg-black/80 rounded-3xl p-5 ${
-        [3, 6,7,8,9,10,11,12,13,].includes(step) ? 'top-12' : 'bottom-24'
+        [3,6,7,8,9,10,11,12,13,14,15].includes(step)? 'top-12' : 'bottom-24'
       }`}>
 
         <span className="text-[#00E676] text-xs uppercase tracking-[0.2em] font-bold">

@@ -52,6 +52,7 @@ export interface FixedExpense {
 }
 
 export interface Movimiento {
+  partner_id?: string | null;
   id: string;
   tipo: TipoTransaccion;
   monto: number;
@@ -99,4 +100,12 @@ export interface Profile {
   initial_investment?: number;
   created_at?: string;
 }
-
+export interface Partner {
+  id: string;
+  user_id: string;
+  profile_id: number;
+  name: string;
+  capital: number;
+  active: boolean;
+  created_at?: string;
+}

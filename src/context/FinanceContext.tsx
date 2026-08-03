@@ -1,5 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Movimiento, Profile, UserSettings, CategoriaPersonalizada, Bolsillo, FixedExpense, MonthlyCycle } from '../types';
+import {
+  Movimiento,
+  Profile,
+  UserSettings,
+  CategoriaPersonalizada,
+  Bolsillo,
+  FixedExpense,
+  MonthlyCycle,
+  Partner
+} from '../types';
 import { supabase, hasSupabaseConfig } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 import { DEFAULT_CATEGORIES } from '../lib/categoryUtils';
@@ -15,6 +24,8 @@ interface FinanceContextType {
   settings: UserSettings;
   profiles: Profile[];
   activeProfile: Profile | null;
+  partners: Partner[];
+  
   setActiveProfile: (profile: Profile) => void;
   updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
   addMovimiento: (movimiento: Omit<Movimiento, 'id' | 'created_at'>) => Promise<void>;
@@ -34,6 +45,9 @@ interface FinanceContextType {
   updateFixedExpense: (id: string | number, fixedExpense: Partial<FixedExpense>) => Promise<void>;
   addMonthlyCycle: (cycle: Omit<MonthlyCycle, 'id' | 'closed_at' | 'user_id'>) => Promise<void>;
   resetApp: () => Promise<void>;
+  addPartner: (partner: Omit<Partner, 'id' | 'created_at'>) => Promise<void>;
+updatePartner: (id: string, partner: Partial<Partner>) => Promise<void>;
+deletePartner: (id: string) => Promise<void>;
   createProfile: (
   name: string,
   profileType?:
@@ -78,6 +92,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [monthlyCycles, setMonthlyCycles] = useState<MonthlyCycle[]>([]);
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
   const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
   useEffect(() => {
     if (!user) return;
@@ -110,6 +125,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (data?.length && !activeProfile) {
         setActiveProfile(data[0]);
       }
+      const { data: partnersData, error: partnersError } = await supabase
+  .from('partners')
+  .select('*')
+  .eq('user_id', user.id)
+  .eq('profile_id', data?.[0]?.id || 0)
+  .order('name');
+
+if (!partnersError) {
+  setPartners(partnersData || []);
+}
     };
 
     loadProfiles();
@@ -216,7 +241,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (hasSupabaseConfig && supabase) {
       try {
-        const [movResponse, catResponse, bolResponse, fixExpResponse] = await Promise.all([
+        const [
+  movResponse,
+  catResponse,
+  bolResponse,
+  fixExpResponse,
+  partnersResponse
+] = await Promise.all([
           supabase
             .from('movimientos')
             .select('*')
@@ -240,13 +271,21 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             .select('*')
             .eq('user_id', user.id)
             .eq('profile_id', activeProfile?.id || 1)
-            .order('created_at', { ascending: true })
+            .order('created_at', { ascending: true }),
+            supabase
+  .from('partners')
+  .select('*')
+  .eq('user_id', user.id)
+  .eq('profile_id', activeProfile?.id || 1)
+  .eq('active', true)
+  .order('name', { ascending: true })
         ]);
 
         if (movResponse.error) throw movResponse.error;
         if (catResponse.error) throw catResponse.error;
         if (bolResponse.error) throw bolResponse.error;
         if (fixExpResponse.error) throw fixExpResponse.error;
+        if (partnersResponse.error) throw partnersResponse.error;
 
         let loadedCats = catResponse.data || [];
 
@@ -310,6 +349,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const bolsillosData = (bolResponse.data || []).map(b => ({ ...b, saldo: Number(b.saldo), meta: Number(b.meta) }));
         setBolsillos(bolsillosData);
         setFixedExpenses(fixExpResponse.data || []);
+        setPartners(partnersResponse.data || []);
 
         // Graceful load of monthly cycles
         let loadedCycles: MonthlyCycle[] = [];
@@ -1233,6 +1273,60 @@ const renameProfile = async (id: string | number, name: string) => {
     });
   }
 };
+const addPartner = async (partner: Omit<Partner, 'id' | 'created_at'>) => {
+  if (!user || !supabase) return;
+
+  const { data, error } = await supabase
+    .from('partners')
+    .insert([{
+      ...partner,
+      user_id: user.id,
+      profile_id: activeProfile?.id
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  setPartners(prev => [...prev, data]);
+};
+
+const updatePartner = async (
+  id: string,
+  partner: Partial<Partner>
+) => {
+  if (!user || !supabase) return;
+
+  const { data, error } = await supabase
+    .from('partners')
+    .update(partner)
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  setPartners(prev =>
+    prev.map(p => p.id === id ? data : p)
+  );
+};
+
+const deletePartner = async (id: string) => {
+  if (!user || !supabase) return;
+
+  const { error } = await supabase
+    .from('partners')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id);
+
+  if (error) throw error;
+
+  setPartners(prev =>
+    prev.filter(p => p.id !== id)
+  );
+};
   const resetApp = async () => {
     if (!user) throw new Error("Debes haber iniciado sesión");
 
@@ -1314,7 +1408,15 @@ const renameProfile = async (id: string | number, name: string) => {
 
   return (
     <FinanceContext.Provider value={{
-      profiles, activeProfile, renameProfile, setActiveProfile, movimientos, categorias, bolsillos, fixedExpenses, monthlyCycles, loading, settings, updateSettings, addMovimiento, updateMovimiento, deleteMovimiento, addCategoria, updateCategoria, deleteCategoria, addBolsillo, updateBolsillo, deleteBolsillo, transferirABolsillo, retirarDeBolsillo, obtenerTransferenciasBolsillo, addFixedExpense, addFixedExpenses, updateFixedExpense, addMonthlyCycle, resetApp, createProfile
+      partners, profiles, activeProfile, renameProfile, setActiveProfile, movimientos, categorias, bolsillos, fixedExpenses, monthlyCycles, loading, settings, updateSettings, addMovimiento, updateMovimiento, deleteMovimiento, addCategoria, updateCategoria, deleteCategoria, addBolsillo, updateBolsillo, deleteBolsillo, transferirABolsillo, retirarDeBolsillo, obtenerTransferenciasBolsillo, addFixedExpense, addFixedExpenses, updateFixedExpense, addMonthlyCycle,
+
+resetApp,
+
+addPartner,
+updatePartner,
+deletePartner,
+
+createProfile
     }}>
       {children}
     </FinanceContext.Provider>

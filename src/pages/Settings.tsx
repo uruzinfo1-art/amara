@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { User, Palette, Coins, LogOut, Calendar, AlertTriangle, Camera, Image as ImageIcon, Trash2, Loader2, ArrowLeft } from 'lucide-react';
 import { ProfilePicture } from '../components/ProfilePicture';
 import { supabase, hasSupabaseConfig } from '../lib/supabase';
+import TutorialSelector from "../components/TutorialSelector";
 
 import { AmaraLogoIcon } from '../components/AmaraLogo';
 
@@ -94,7 +95,7 @@ export function Settings() {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-
+const [showTutorialSelector, setShowTutorialSelector] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -343,13 +344,11 @@ export function Settings() {
         </div>
 
         <Button
-          onClick={() => {
-            window.location.hash = '/tutorial';
-          }}
-          className="w-full"
-        >
-          Ver Tutorial
-        </Button>
+  onClick={() => setShowTutorialSelector(true)}
+  className="w-full"
+>
+  Ver Tutorial
+</Button>
       </div>
 
       <Card>
@@ -652,7 +651,12 @@ export function Settings() {
           </Card>
         </div>
       )}
-
+{showTutorialSelector && (
+  <TutorialSelector
+    open={showTutorialSelector}
+    onClose={() => setShowTutorialSelector(false)}
+  />
+)}
     </div>
   );
 }

@@ -38,12 +38,47 @@ export default function DashboardBusinessProductive() {
   const navigate = useNavigate();
 
   const {
-    settings,
-    movimientos,
-    activeProfile,
-    loading,
+  profiles,
+  activeProfile,
+  setActiveProfile,
+  settings,
+  movimientos,
+  partners,
+  loading,
+  addPartner,
 } = useFinance();
+const [showPartnerModal, setShowPartnerModal,] = React.useState(false);
 
+const [newPartner, setNewPartner] = React.useState({
+  name: "",
+  
+});
+const guardarPartner = async () => {
+  console.log("Entró a guardarPartner");
+  if (!newPartner.name.trim()) return;
+// Ya no es necesario validar capital
+
+ try {
+  await addPartner({
+    name: newPartner.name,
+    capital: 0,
+    profile_id: activeProfile!.id,
+    user_id: activeProfile!.user_id,
+    active: true,
+  });
+
+  console.log("SOCIO GUARDADO");
+
+} catch (error) {
+  console.error(error);
+}
+
+  setNewPartner({
+  name: "",
+});
+
+  setShowPartnerModal(false);
+};
   const [showProfileMenu, setShowProfileMenu] =
     React.useState(false);
 
@@ -113,6 +148,47 @@ const porcentajeRecuperado =
   capitalInvertido > 0
     ? (recuperado / capitalInvertido) * 100
     : 0;
+    const socios = partners.filter(
+  (p) =>
+    p.profile_id === activeProfile?.id &&
+    p.active
+);
+
+const obtenerCapitalSocio = (partnerId: string) => {
+
+  const socio = socios.find(
+    s => s.id === partnerId
+  );
+
+  const capitalInicial =
+    Number(socio?.capital || 0);
+
+  const movimientosSocio =
+    movimientosProyecto.filter(
+      m =>
+        m.partner_id === partnerId &&
+        (
+          m.categoria === "inversion" ||
+          m.categoria === "gasto"
+        )
+    );
+
+  const aportes =
+    movimientosSocio.reduce(
+      (total, mov) => total + Number(mov.monto),
+      0
+    );
+
+  return capitalInicial + aportes;
+
+};
+
+const capitalSocios =
+  socios.reduce(
+    (total, socio) =>
+      total + obtenerCapitalSocio(socio.id),
+    0
+  );
 /**
  * FECHA DE INICIO
  * Primer movimiento registrado del proyecto.
@@ -207,8 +283,8 @@ const mesesRestantes = Math.ceil(diasRestantes / 30);
     return null;
 
   return (
-
-    <div className="space-y-6">
+<>
+<div className="space-y-6">
 
       {/* HEADER */}
 
@@ -231,32 +307,50 @@ const mesesRestantes = Math.ceil(diasRestantes / 30);
 
         </div>
 
+        <div className="relative">
+
+  <button
+    onClick={() => setShowProfileMenu(!showProfileMenu)}
+  >
+    <ProfilePicture
+      name={settings.userName || "Usuario"}
+      url={settings.avatarUrl}
+      size="md"
+    />
+  </button>
+
+  {showProfileMenu && (
+    <div className="absolute right-0 top-16 w-64 rounded-2xl border bg-card p-2 shadow-xl z-50">
+
+      {profiles.map((profile) => (
         <button
-
-          onClick={() =>
-            setShowProfileMenu(
-              !showProfileMenu
-            )
-          }
-
+          key={profile.id}
+          onClick={() => {
+            setActiveProfile(profile);
+            setShowProfileMenu(false);
+          }}
+          className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5"
         >
-
-          <ProfilePicture
-
-            name={
-              settings.userName ||
-              "Usuario"
-            }
-
-            url={
-              settings.avatarUrl
-            }
-
-            size="md"
-
-          />
-
+          👤 {profile.name}
         </button>
+      ))}
+
+      <div className="border-t border-white/10 my-2" />
+
+      <button
+        onClick={() => {
+          setShowProfileMenu(false);
+          navigate("/settings");
+        }}
+        className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/5"
+      >
+        ⚙ Ajustes
+      </button>
+
+    </div>
+  )}
+
+</div>
 
       </header>
 
@@ -332,6 +426,117 @@ const mesesRestantes = Math.ceil(diasRestantes / 30);
         </CardContent>
 
       </Card>
+      <Card className="border-primary/20 bg-gradient-to-br from-card to-background">
+
+  <CardHeader className="flex flex-row items-center justify-between">
+
+    <CardTitle>
+      👥 Socios
+    </CardTitle>
+
+    <button
+  onClick={() => setShowPartnerModal(true)}
+  className="text-sm px-3 py-1 rounded-lg bg-primary text-white hover:opacity-90"
+>
+  + Agregar
+</button>
+
+  </CardHeader>
+
+  <CardContent>
+
+    <div className="mb-5">
+
+      <p className="text-xs text-muted-foreground">
+        Capital de socios
+      </p>
+
+      <h2 className="text-3xl font-bold">
+
+        {formatCurrency(
+          capitalSocios,
+          settings.currency
+        )}
+
+      </h2>
+
+    </div>
+
+    <div className="space-y-4">
+
+      {socios.length === 0 ? (
+
+        <div className="text-center py-8 text-muted-foreground">
+
+          No hay socios registrados.
+
+        </div>
+
+      ) : (
+
+        socios.map((socio) => {
+
+          const capitalActual =
+  obtenerCapitalSocio(socio.id);
+
+const porcentaje =
+  capitalSocios > 0
+    ? (capitalActual / capitalSocios) * 100
+    : 0;
+
+          return (
+
+            <div
+              key={socio.id}
+              className="rounded-xl border p-4"
+            >
+
+              <div className="flex justify-between items-center">
+
+                <strong>
+
+                  {socio.name}
+
+                </strong>
+
+                <span>
+
+                  {porcentaje.toFixed(1)}%
+
+                </span>
+
+              </div>
+
+              <div className="mt-2 flex justify-between">
+
+                <span>
+
+                  {formatCurrency(
+  capitalActual,
+  settings.currency
+)}
+
+                </span>
+
+              </div>
+
+            </div>
+
+          );
+
+        })
+
+      )}
+
+    </div>
+
+  </CardContent>
+
+</Card>
+      {/* ==========================================
+        TARJETAS DE INDICADORES
+========================================== */}
+
       {/* ==========================================
               TARJETAS DE INDICADORES
       ========================================== */}
@@ -711,7 +916,52 @@ const mesesRestantes = Math.ceil(diasRestantes / 30);
               
 
     </div>
+    {showPartnerModal && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
 
+    <div className="bg-card rounded-2xl p-6 w-[380px] space-y-4">
+
+      <h2 className="text-xl font-bold">
+        Agregar socio
+      </h2>
+
+      <input
+        className="w-full rounded-lg border p-2"
+        placeholder="Nombre"
+        value={newPartner.name}
+        onChange={(e) =>
+          setNewPartner({
+            ...newPartner,
+            name: e.target.value,
+          })
+        }
+      />
+
+      
+
+      <div className="flex justify-end gap-2">
+
+        <button
+          onClick={() => setShowPartnerModal(false)}
+          className="px-4 py-2 rounded-lg border"
+        >
+          Cancelar
+        </button>
+
+        <button
+          onClick={guardarPartner}
+          className="px-4 py-2 rounded-lg bg-primary text-white"
+        >
+          Guardar
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
+</>
   );
 
 }

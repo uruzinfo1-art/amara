@@ -9,6 +9,8 @@ import dashboardImg from '../assets/tutorial/dashboard.jpeg';
 import movimientosImg from '../assets/tutorial/movimientos.jpeg';
 import gastosFijosImg from '../assets/tutorial/gastos-fijos.jpeg';
 import bolsillosImg from '../assets/tutorial/bolsillos.jpeg';
+import perfiles from "../assets/tutorial/perfiles.png";
+import perfil1 from "../assets/tutorial/perfil1.jpeg";
 
 export function Onboarding() {
   const { updateSettings } = useFinance();
@@ -344,7 +346,7 @@ export function Onboarding() {
                       </h2>
 
                       <p className="text-sm text-neutral-400">
-                        Podemos mostrarte rápidamente cómo funciona la aplicación antes de comenzar.
+                         n menos de un minuto conocerás las funciones principales del perfil Home y cómo acceder a los demás perfiles de AMARA.
                       </p>
 
                     </div>
@@ -380,22 +382,20 @@ export function Onboarding() {
 
                 <div className="absolute inset-0 bg-black/45" />
 
-                <div className="absolute bottom-0 left-0 right-0 p-6">
+                <div className="absolute bottom-10 left-6 right-6 z-10 space-y-4">
 
-                  <div className="absolute bottom-10 left-6 right-6 z-10 space-y-4">
-
-                  </div>
+                  
 
                     <span className="text-[#00E676] text-xs uppercase tracking-[0.25em] font-bold">
                       Dashboard
                     </span>
 
                     <h2 className="text-3xl font-black text-white leading-tight">
-                      Todo tu dinero en un solo lugar
+                      Tu panel financiero personal
                     </h2>
 
                     <p className="text-sm text-neutral-300 leading-relaxed">
-                      Visualiza tu balance, movimientos y progreso financiero desde un solo lugar.
+                      Desde aquí podrás conocer tu dinero disponible, ingresos, gastos y ahorros de un solo vistazo.
                     </p>
 
                     <Button
@@ -411,7 +411,77 @@ export function Onboarding() {
 
 
                     )}
-                {step === 7 && (
+                    {step === 7 && (
+  <div className="fixed inset-0 z-50 overflow-hidden">
+
+    <img
+      src={perfiles}
+      className="absolute inset-0 w-full h-full object-cover"
+    />
+
+    <div className="absolute inset-0 bg-black/45" />
+
+    <div className="absolute bottom-10 left-6 right-6 z-10 space-y-4">
+
+      <span className="text-[#00E676] text-xs uppercase tracking-[0.25em] font-bold">
+        PERFILES
+      </span>
+
+      <h2 className="text-3xl font-black text-white leading-tight">
+        Administra varios perfiles
+      </h2>
+
+      <p className="text-sm text-white/90 leading-relaxed">
+        Puedes tener un perfil para tu hogar y crear perfiles independientes para cada negocio. Cada perfil mantiene sus movimientos, estadísticas y configuración totalmente separados.
+      </p>
+
+      <Button
+        className="w-full h-12 rounded-2xl bg-[#00E676] text-black font-black uppercase"
+        onClick={() => setStep(8)}
+      >
+        Continuar
+      </Button>
+
+    </div>
+
+  </div>
+)}
+{step === 8 && (
+  <div className="fixed inset-0 z-50 overflow-hidden">
+
+    <img
+      src={perfil1}
+      className="absolute inset-0 w-full h-full object-cover"
+    />
+
+    <div className="absolute inset-0 bg-black/45" />
+
+    <div className="absolute bottom-10 left-6 right-6 z-10 space-y-4">
+
+      <span className="text-[#00E676] text-xs uppercase tracking-[0.25em] font-bold">
+        NUEVO PERFIL
+      </span>
+
+      <h2 className="text-3xl font-black text-white leading-tight">
+        Elige el tipo de perfil correcto
+      </h2>
+
+      <p className="text-sm text-white/90 leading-relaxed">
+        Cada perfil está diseñado para una necesidad diferente. Puedes crear un perfil para tu hogar, un negocio de ciclo productivo o un negocio de flujo continuo.
+      </p>
+
+      <Button
+        className="w-full h-12 rounded-2xl bg-[#00E676] text-black font-black uppercase"
+        onClick={() => setStep(9)}
+      >
+        Continuar
+      </Button>
+
+    </div>
+
+  </div>
+)}
+                {step === 9 && (
                   <div className="fixed inset-0 z-50 overflow-hidden">
 
                     <img
@@ -428,17 +498,16 @@ export function Onboarding() {
                       </span>
 
                       <h2 className="text-3xl font-black text-white leading-tight">
-                        Registra ingresos y gastos fácilmente
+                        Registra todos tus movimientos
                       </h2>
 
                       <p className="text-sm text-white/90 leading-relaxed">
-                        Registra cada ingreso y gasto fácilmente.
-                        Lleva el control completo de tu dinero y consulta tu historial cuando lo necesites.
+                        Registra ingresos, gastos y ahorros para que AMARA mantenga actualizado tu balance y tus estadísticas.
                       </p>
 
                       <Button
                         className="w-full h-12 rounded-2xl bg-[#00E676] text-black font-black uppercase"
-                        onClick={() => setStep(8)}
+                        onClick={() => setStep(10)}
                       >
                         Continuar
                       </Button>
@@ -448,7 +517,7 @@ export function Onboarding() {
                   </div>
                 )}
 
-                {step === 8 && (
+                {step === 10 && (
                   <div className="fixed inset-0 z-50 overflow-hidden">
 
                     <img
@@ -475,7 +544,7 @@ export function Onboarding() {
 
                       <Button
                         className="w-full h-12 rounded-2xl bg-[#00E676] text-black font-black uppercase"
-                        onClick={() => setStep(9)}
+                        onClick={() => setStep(11)}
                       >
                         Continuar
                       </Button>
@@ -485,7 +554,7 @@ export function Onboarding() {
                   </div>
                 )}
 
-                {step === 9 && (
+                {step === 11 && (
                   <div className="fixed inset-0 z-50 overflow-hidden">
 
                     <img
@@ -511,7 +580,7 @@ export function Onboarding() {
 
                       <Button
                         className="w-full h-12 rounded-2xl bg-[#00E676] text-black font-black uppercase"
-                        onClick={() => setStep(10)}
+                        onClick={() => setStep(12)}
                       >
                         Entrar a AMARA
                       </Button>
@@ -520,7 +589,7 @@ export function Onboarding() {
 
                   </div>
                 )}
-            {step === 10 && (
+            {step === 12 && (
               <div className="fixed inset-0 z-50 overflow-hidden">
 
                 <div className="absolute inset-0 bg-gradient-to-br from-[#08080a] via-[#050c07] to-neutral-950" />

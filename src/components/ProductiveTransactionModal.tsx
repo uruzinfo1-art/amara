@@ -27,9 +27,11 @@ export function ProductiveTransactionModal({
 }: ProductiveTransactionModalProps) {
 
   const {
-    addMovimiento,
-    updateMovimiento,
-  } = useFinance();
+  addMovimiento,
+  updateMovimiento,
+  partners,
+  activeProfile,
+} = useFinance();
 
   const [loading, setLoading] = useState(false);
 
@@ -49,6 +51,7 @@ export function ProductiveTransactionModal({
         "yyyy-MM-dd"
       )
     );
+    const [partnerId, setPartnerId] = useState("");
 
   useEffect(() => {
 
@@ -212,18 +215,20 @@ export function ProductiveTransactionModal({
 
       const data = {
 
-        tipo: movement.tipo,
+  partner_id: partnerId || null,
 
-        categoria: movement.categoria,
+  tipo: movement.tipo,
 
-        monto: parseFloat(monto),
+  categoria: movement.categoria,
 
-        descripcion:
-          descripcion.trim() ||
-          movement.title,
+  monto: parseFloat(monto),
 
-        fecha,
-      };
+  descripcion:
+    descripcion.trim() ||
+    movement.title,
+
+  fecha,
+};
 
       if (movimiento) {
 
@@ -431,6 +436,40 @@ export function ProductiveTransactionModal({
             />
 
           </div>
+          <div>
+
+  <label className="text-sm font-medium">
+    Socio que realizó el movimiento
+  </label>
+
+  <select
+    value={partnerId}
+    onChange={(e) => setPartnerId(e.target.value)}
+    className="mt-2 h-12 w-full rounded-lg border bg-background px-3"
+  >
+
+    <option value="">
+      Empresa
+    </option>
+
+    {partners
+      .filter(
+        partner =>
+          partner.profile_id === activeProfile?.id &&
+          partner.active
+      )
+      .map((partner) => (
+        <option
+          key={partner.id}
+          value={partner.id}
+        >
+          {partner.name}
+        </option>
+      ))}
+
+  </select>
+
+</div>
           {/* Fecha */}
 
           <div>

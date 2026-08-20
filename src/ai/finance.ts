@@ -1,4 +1,4 @@
-import { movementService } from "./services/movements";
+import { movementService } from "./services/movements.js";
 export class Finance {
 
   async execute(data: any) {

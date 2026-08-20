@@ -1,4 +1,4 @@
-import { assistant } from "./assistant";
+import { assistant } from "./assistant.js";
 
 export class AIController {
 

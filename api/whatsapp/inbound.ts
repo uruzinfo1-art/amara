@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Vonage } from "@vonage/server-sdk";
+import { assistant } from "../../src/ai/assistant";
 
 const vonage = new Vonage(
   {
@@ -37,13 +38,17 @@ export default async function handler(
     }
 
     try {
-      await vonage.messages.send({
-        channel: "whatsapp",
-        messageType: "text",
-        to: from,
-        from: to,
-        text: "Hola 👋 Soy AMARA. Recibí tu mensaje correctamente.",
-      });
+      const respuesta = await assistant.processMessage(text);
+
+console.log("RESPUESTA AMARA:", respuesta);
+
+await vonage.messages.send({
+  channel: "whatsapp",
+  messageType: "text",
+  to: from,
+  from: to,
+  text: respuesta,
+});
 
       console.log("Respuesta enviada correctamente");
 

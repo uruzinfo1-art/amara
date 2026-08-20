@@ -98,6 +98,7 @@ Mensaje:
 "${message}"
 `
     });
+    console.log("OPENAI RESPUESTA:", response.output_text);
 
     return JSON.parse(response.output_text);
   }

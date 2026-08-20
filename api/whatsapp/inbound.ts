@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Vonage } from "@vonage/server-sdk";
-import { assistant } from "../../src/ai/assistant";
+import { assistant } from "../../src/ai/assistant.js";
 
 const vonage = new Vonage(
   {

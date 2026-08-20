@@ -1,4 +1,4 @@
-import { finance } from "./finance";
+import { finance } from "./finance.js";
 
 export class Router {
 

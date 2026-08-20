@@ -1,5 +1,5 @@
-import { classifier } from "./classifier";
-import { router } from "./router";
+import { classifier } from "./classifier.js";
+import { router } from "./router.js";
 
 export class Assistant {
 

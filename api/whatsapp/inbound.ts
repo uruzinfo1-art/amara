@@ -1,10 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Vonage } from "@vonage/server-sdk";
 
-const vonage = new Vonage({
-  apiKey: process.env.VONAGE_API_KEY!,
-  apiSecret: process.env.VONAGE_API_SECRET!,
-});
+const vonage = new Vonage(
+  {
+    apiKey: process.env.VONAGE_API_KEY!,
+    apiSecret: process.env.VONAGE_API_SECRET!,
+  },
+  {
+    apiHost: "https://messages-sandbox.nexmo.com",
+  }
+);
 
 export default async function handler(
   req: VercelRequest,

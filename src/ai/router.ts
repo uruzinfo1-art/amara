@@ -1,22 +1,30 @@
 import { finance } from "./finance.js";
 
 export class Router {
-
-  async route(data: any, context: { userId: string; profileId: number }) {
-
-    const result = await finance.execute(data, context);
-
-    if (!result) {
-      return "No pude procesar tu solicitud.";
-    }
-
+  async route(
+    data: any,
+    context: { userId: string; profileId: number }
+  ) {
     switch (data.intent) {
+      case "greeting":
+        return "Hola 👋 Soy AMARA. Estoy aquí para ayudarte con tus finanzas.";
+
+      case "conversation":
+        return "Aquí estoy 😊. ¿Qué necesitas revisar de tus finanzas?";
 
       case "create_expense":
-        return `✅ Gasto registrado: $${data.amount?.toLocaleString("es-CO")} en ${data.category || "Otros"}${data.description ? ` (${data.description})` : ""}.`;
+        await finance.execute(data, context);
+
+        return `✅ Gasto registrado: $${data.amount?.toLocaleString("es-CO")} en ${
+          data.category || "Otros"
+        }${data.description ? ` (${data.description})` : ""}.`;
 
       case "create_income":
-        return `✅ Ingreso registrado: $${data.amount?.toLocaleString("es-CO")} — ${data.description || data.category || "Ingreso"}.`;
+        await finance.execute(data, context);
+
+        return `✅ Ingreso registrado: $${data.amount?.toLocaleString("es-CO")} — ${
+          data.description || data.category || "Ingreso"
+        }.`;
 
       case "check_balance":
         return "📊 La consulta de saldo todavía está en desarrollo.";
@@ -34,10 +42,9 @@ export class Router {
         return "👛 La función de movimientos entre bolsillos todavía está en desarrollo.";
 
       default:
-        return "No entendí lo que necesitas. Puedes decirme, por ejemplo: \"Gasté 35 mil en gasolina\".";
+        return "No estoy seguro de lo que necesitas. Puedes preguntarme sobre tus finanzas o decirme algo como: \"Gasté 35 mil en gasolina\".";
     }
   }
-
 }
 
 export const router = new Router();

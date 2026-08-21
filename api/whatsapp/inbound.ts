@@ -50,6 +50,16 @@ export default async function handler(
 
 const whatsappContact = null;
 const whatsappContactError = null;
+console.log(
+  "SUPABASE URL:",
+  process.env.SUPABASE_URL
+);
+
+console.log(
+  "SUPABASE URL LENGTH:",
+  process.env.SUPABASE_URL?.length
+);
+
 console.log("PRUEBA: se llegó después de Supabase");
 
 return res.status(200).json({

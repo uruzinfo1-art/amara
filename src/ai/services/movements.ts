@@ -107,6 +107,30 @@ export class MovementService {
     movimientos: movimientos || [],
   };
 }
+  async getMovements(
+    context: { userId: string; profileId: number }
+  ) {
+    const { data, error } = await supabaseServer
+      .from("movimientos")
+      .select("tipo, monto, categoria, descripcion, fecha")
+      .eq("user_id", context.userId)
+      .eq("profile_id", context.profileId)
+      .order("fecha", { ascending: false });
+
+    if (error) {
+      console.error("Error consultando movimientos:", error);
+
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    return {
+      success: true,
+      movimientos: data || [],
+    };
+  }
 }
 
 export const movementService = new MovementService();

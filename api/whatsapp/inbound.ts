@@ -43,12 +43,8 @@ export default async function handler(
       });
     }
 
-    const { data: whatsappContact, error: whatsappContactError } =
-      await supabaseServer
-        .from("whatsapp_contacts")
-        .select("user_id, profile_id")
-        .eq("phone", from)
-        .maybeSingle();
+    const whatsappContact = null;
+const whatsappContactError = null;
 
     if (whatsappContactError) {
       console.error("Error buscando WhatsApp:", whatsappContactError);

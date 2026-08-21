@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Vonage } from "@vonage/server-sdk";
 import { assistant } from "../../src/ai/assistant.js";
-import { supabaseServer } from "../../src/lib/supabaseServer.js";
+import { supabaseServer } from "../../src/lib/supabaseServer";
 
 const vonage = new Vonage(
   {

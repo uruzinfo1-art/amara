@@ -1,4 +1,4 @@
-import { supabase } from "../../lib/supabase.js";
+import { supabaseServer } from "../../lib/supabaseServer.js";
 
 export class MovementService {
   async create(
@@ -7,7 +7,7 @@ export class MovementService {
   ) {
     console.log("Movimiento recibido:", data);
     console.log("Contexto:", context);
-    if (!supabase) {
+    if (!supabaseServer) {
   return {
     success: false,
     error: "Supabase no está configurado.",
@@ -19,7 +19,7 @@ export class MovementService {
         ? "gasto"
         : "ingreso";
 
-    const { data: movimiento, error } = await supabase
+    const { data: movimiento, error } = await supabaseServer
       .from("movimientos")
       .insert({
         tipo,

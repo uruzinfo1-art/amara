@@ -5,6 +5,7 @@ export class MovementService {
     data: any,
     context: { userId: string; profileId: number }
   ) {
+    
     console.log("Movimiento recibido:", data);
     console.log("Contexto:", context);
     if (!supabaseServer) {
@@ -47,6 +48,36 @@ export class MovementService {
     return {
       success: true,
       data: movimiento,
+    };
+  }
+    async getExpenses(
+    context: { userId: string; profileId: number }
+  ) {
+    const { data, error } = await supabaseServer
+      .from("movimientos")
+      .select("monto, categoria, descripcion, fecha")
+      .eq("user_id", context.userId)
+      .eq("profile_id", context.profileId)
+      .eq("tipo", "gasto");
+
+    if (error) {
+      console.error("Error consultando gastos:", error);
+
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+
+    const total = (data || []).reduce(
+      (sum, movimiento) => sum + Number(movimiento.monto || 0),
+      0
+    );
+
+    return {
+      success: true,
+      total,
+      movimientos: data || [],
     };
   }
 }

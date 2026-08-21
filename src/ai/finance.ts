@@ -25,10 +25,7 @@ export class Finance {
 
       case "check_expenses":
 
-        return {
-          success: true,
-          action: "expenses_requested"
-        };
+  return await movementService.getExpenses(context);
 
       default:
 

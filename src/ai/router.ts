@@ -29,8 +29,17 @@ export class Router {
       case "check_balance":
         return "📊 La consulta de saldo todavía está en desarrollo.";
 
-      case "check_expenses":
-        return "📊 La consulta de gastos todavía está en desarrollo.";
+     case "check_expenses": {
+  const gastos = await finance.execute(data, context);
+
+  if (!gastos.success || !("total" in gastos)) {
+  return "📊 No pude consultar tus gastos en este momento.";
+}
+
+const total = "total" in gastos ? Number(gastos.total) : 0;
+
+return `📊 Has gastado ${total.toLocaleString("es-CO")} en total.`;
+}
 
       case "create_saving":
         return "💰 La función de ahorro todavía está en desarrollo.";

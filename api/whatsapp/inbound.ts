@@ -45,6 +45,12 @@ export default async function handler(
 
     const whatsappContact = null;
 const whatsappContactError = null;
+console.log("PRUEBA: se llegó después de Supabase");
+
+return res.status(200).json({
+  success: true,
+  message: "WhatsApp recibido correctamente. Prueba de Supabase OK."
+});
 
     if (whatsappContactError) {
       console.error("Error buscando WhatsApp:", whatsappContactError);

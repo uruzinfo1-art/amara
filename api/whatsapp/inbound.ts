@@ -43,7 +43,12 @@ export default async function handler(
       });
     }
 
-    const whatsappContact = null;
+    console.log(
+  "SUPABASE URL:",
+  process.env.SUPABASE_URL
+);
+
+const whatsappContact = null;
 const whatsappContactError = null;
 console.log("PRUEBA: se llegó después de Supabase");
 

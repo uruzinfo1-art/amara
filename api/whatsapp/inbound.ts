@@ -48,41 +48,31 @@ export default async function handler(
   process.env.SUPABASE_URL
 );
 
-const whatsappContact = null;
-const whatsappContactError = null;
-console.log(
-  "SUPABASE URL:",
-  process.env.SUPABASE_URL
-);
+const {
+  data: whatsappContact,
+  error: whatsappContactError
+} = await supabaseServer
+  .from("whatsapp_contacts")
+  .select("user_id, profile_id")
+  .eq("phone", String(from))
+  .limit(1)
+  .maybeSingle();
 
-console.log(
-  "SUPABASE URL LENGTH:",
-  process.env.SUPABASE_URL?.length
-);
+if (whatsappContactError) {
+  console.error("Error buscando WhatsApp:", whatsappContactError);
 
-console.log("PRUEBA: se llegó después de Supabase");
+  return res.status(500).json({
+    error: "No se pudo identificar la cuenta de WhatsApp",
+  });
 
-return res.status(200).json({
-  success: true,
-  message: "WhatsApp recibido correctamente. Prueba de Supabase OK."
-});
-
-    if (whatsappContactError) {
-      console.error("Error buscando WhatsApp:", whatsappContactError);
-
-      return res.status(500).json({
-        error: "No se pudo identificar la cuenta de WhatsApp",
-      });
-    }
-
+}
     if (!whatsappContact) {
-      console.log("Número de WhatsApp no registrado:", from);
+  console.log("Número de WhatsApp no registrado:", from);
 
-      return res.status(403).json({
-        error: "Número de WhatsApp no registrado en AMARA",
-      });
-    }
-
+  return res.status(403).json({
+    error: "Número de WhatsApp no registrado en AMARA",
+  });
+}
     const userId = whatsappContact.user_id;
     const profileId = whatsappContact.profile_id;
 

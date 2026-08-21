@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Vonage } from "@vonage/server-sdk";
 import { assistant } from "../../src/ai/assistant.js";
+import { supabaseServer } from "../../src/lib/supabaseServer.js";
 
 const vonage = new Vonage(
   {
@@ -37,18 +38,56 @@ export default async function handler(
       });
     }
 
+    const { data: whatsappContact, error: whatsappContactError } =
+      await supabaseServer
+        .from("whatsapp_contacts")
+        .select("user_id, profile_id")
+        .eq("phone", from)
+        .maybeSingle();
+
+    if (whatsappContactError) {
+      console.error("Error buscando WhatsApp:", whatsappContactError);
+
+      return res.status(500).json({
+        error: "No se pudo identificar la cuenta de WhatsApp",
+      });
+    }
+
+    if (!whatsappContact) {
+      console.log("Número de WhatsApp no registrado:", from);
+
+      return res.status(403).json({
+        error: "Número de WhatsApp no registrado en AMARA",
+      });
+    }
+
+    const userId = whatsappContact.user_id;
+    const profileId = whatsappContact.profile_id;
+
+    console.log("USUARIO AMARA:", userId);
+    console.log("PERFIL AMARA:", profileId);
+
+    if (!profileId) {
+      return res.status(400).json({
+        error: "El WhatsApp no tiene un perfil de AMARA asignado",
+      });
+    }
+
     try {
-      const respuesta = await assistant.processMessage(text);
+      const respuesta = await assistant.processMessage(text, {
+        userId,
+        profileId,
+      });
 
-console.log("RESPUESTA AMARA:", respuesta);
+      console.log("RESPUESTA AMARA:", respuesta);
 
-await vonage.messages.send({
-  channel: "whatsapp",
-  messageType: "text",
-  to: from,
-  from: to,
-  text: respuesta,
-});
+      await vonage.messages.send({
+        channel: "whatsapp",
+        messageType: "text",
+        to: from,
+        from: to,
+        text: respuesta,
+      });
 
       console.log("Respuesta enviada correctamente");
 

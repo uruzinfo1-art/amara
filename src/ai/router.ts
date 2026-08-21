@@ -2,9 +2,9 @@ import { finance } from "./finance.js";
 
 export class Router {
 
-  async route(data: any) {
+  async route(data: any, context: { userId: string; profileId: number }) {
 
-    const result = await finance.execute(data);
+    const result = await finance.execute(data, context);
 
     if (!result) {
       return "No pude procesar tu solicitud.";

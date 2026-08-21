@@ -1,17 +1,20 @@
 import { movementService } from "./services/movements.js";
 export class Finance {
 
-  async execute(data: any) {
+  async execute(
+  data: any,
+  context: { userId: string; profileId: number }
+) {
 
     switch (data.intent) {
 
       case "create_expense":
 
-        return await movementService.create(data);
+        return await movementService.create(data, context);
 
       case "create_income":
 
-         return await movementService.create(data);
+         return await movementService.create(data, context);
 
       case "check_balance":
 

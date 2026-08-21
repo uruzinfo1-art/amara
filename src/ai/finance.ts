@@ -25,7 +25,7 @@ export class Finance {
 
       case "check_expenses":
 
-  return await movementService.getExpenses(context);
+  return await movementService.getExpenses(data, context)
 
       default:
 

@@ -51,35 +51,62 @@ export class MovementService {
     };
   }
     async getExpenses(
-    context: { userId: string; profileId: number }
-  ) {
-    const { data, error } = await supabaseServer
-      .from("movimientos")
-      .select("monto, categoria, descripcion, fecha")
-      .eq("user_id", context.userId)
-      .eq("profile_id", context.profileId)
-      .eq("tipo", "gasto");
+  data: any,
+  context: { userId: string; profileId: number }
+) {
+  let query = supabaseServer
+    .from("movimientos")
+    .select("monto, categoria, descripcion, fecha")
+    .eq("user_id", context.userId)
+    .eq("profile_id", context.profileId)
+    .eq("tipo", "gasto");
 
-    if (error) {
-      console.error("Error consultando gastos:", error);
+  if (data.category) {
+    query = query.eq("categoria", data.category);
+  }
 
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
+  if (data.period === "today") {
+    const today = new Date().toISOString().split("T")[0];
+    query = query.eq("fecha", today);
+  }
 
-    const total = (data || []).reduce(
-      (sum, movimiento) => sum + Number(movimiento.monto || 0),
-      0
-    );
+  if (data.period === "month") {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+
+    query = query
+      .gte("fecha", `${year}-${month}-01`)
+      .lt(
+        "fecha",
+        new Date(year, now.getMonth() + 1, 1)
+          .toISOString()
+          .split("T")[0]
+      );
+  }
+
+  const { data: movimientos, error } = await query;
+
+  if (error) {
+    console.error("Error consultando gastos:", error);
 
     return {
-      success: true,
-      total,
-      movimientos: data || [],
+      success: false,
+      error: error.message,
     };
   }
+
+  const total = (movimientos || []).reduce(
+    (sum, movimiento) => sum + Number(movimiento.monto || 0),
+    0
+  );
+
+  return {
+    success: true,
+    total,
+    movimientos: movimientos || [],
+  };
+}
 }
 
 export const movementService = new MovementService();

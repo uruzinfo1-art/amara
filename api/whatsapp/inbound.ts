@@ -43,6 +43,41 @@ export default async function handler(
       });
     }
 
+    // --- Protección contra mensajes duplicados de Vonage (Opción A) ---
+    // Vonage reenvía el mismo mensaje si tardamos en responder. Usamos el
+    // message_uuid como "huella" única (con un respaldo si no viniera).
+    const fingerprint = String(
+      req.body?.message_uuid ??
+        `${from}|${text ?? ""}|${req.body?.timestamp ?? ""}`
+    );
+
+    // ¿Ya procesamos este mensaje antes?
+    const { data: yaVisto } = await supabaseServer
+      .from("whatsapp_dedupe")
+      .select("fingerprint")
+      .eq("fingerprint", fingerprint)
+      .maybeSingle();
+
+    if (yaVisto) {
+      console.log("Mensaje duplicado, ignorado:", fingerprint);
+      return res.status(200).json({ received: true, duplicate: true });
+    }
+
+    // Marcamos el mensaje como visto ANTES de procesarlo.
+    const { error: dedupeError } = await supabaseServer
+      .from("whatsapp_dedupe")
+      .insert({ fingerprint, created_at: new Date().toISOString() });
+
+    if (dedupeError) {
+      // 23505 = índice único: otra copia del mismo webhook llegó casi a la vez.
+      if (dedupeError.code === "23505") {
+        console.log("Mensaje duplicado (carrera), ignorado:", fingerprint);
+        return res.status(200).json({ received: true, duplicate: true });
+      }
+      // Otro error al guardar la huella: lo registramos, pero no bloqueamos el mensaje.
+      console.error("Error registrando huella anti-duplicados:", dedupeError);
+    }
+
     console.log(
   "SUPABASE URL:",
   process.env.SUPABASE_URL

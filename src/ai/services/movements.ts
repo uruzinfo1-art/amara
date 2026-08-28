@@ -20,6 +20,26 @@ export class MovementService {
         ? "gasto"
         : "ingreso";
 
+    // Perfil: el que eligió la IA (data.profileId); si no vino, el del contexto.
+    const profileId = data.profileId ?? context.profileId;
+
+    // Verifica que ese perfil exista y pertenezca a este usuario.
+    const { data: perfil, error: perfilError } = await supabaseServer
+      .from("profiles")
+      .select("id")
+      .eq("id", profileId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    if (perfilError || !perfil) {
+      console.error("Perfil no válido para este usuario:", profileId, perfilError);
+
+      return {
+        success: false,
+        error: "El perfil indicado no existe o no pertenece a este usuario.",
+      };
+    }
+
     const { data: movimiento, error } = await supabaseServer
       .from("movimientos")
       .insert({
@@ -29,7 +49,7 @@ export class MovementService {
         descripcion: data.description || null,
         fecha: new Date().toISOString().split("T")[0],
         user_id: context.userId,
-        profile_id: context.profileId,
+        profile_id: profileId,
       })
       .select()
       .single();
@@ -112,10 +132,10 @@ export class MovementService {
   ) {
     const { data, error } = await supabaseServer
       .from("movimientos")
-      .select("tipo, monto, categoria, descripcion, fecha")
+      .select("id, tipo, monto, categoria, descripcion, fecha, profile_id")
       .eq("user_id", context.userId)
-      .eq("profile_id", context.profileId)
-      .order("fecha", { ascending: false });
+      .order("fecha", { ascending: false })
+      .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error consultando movimientos:", error);

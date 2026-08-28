@@ -1,97 +1,186 @@
 import { openai } from "../lib/openai.js";
 import { AMARA_AI } from "./rules.js";
+import { finance } from "./finance.js";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseServer = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 export interface AssistantContext {
   userId: string;
   profileId: number;
 }
 
+const tools = [
+  {
+    type: "function",
+    name: "registrar_gasto",
+    description: "Registra un gasto del usuario en su perfil actual.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        amount: { type: "number", description: "Monto del gasto en pesos" },
+        category: { type: "string", description: "Categoría del gasto, ej: Transporte, Alimentación" },
+        description: { type: "string", description: "Descripción corta del gasto" },
+        profile_id: { type: "number", description: "id del perfil al que pertenece el gasto, tomado de la lista PERFILES DE ESTE USUARIO" },
+      },
+      required: ["amount"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "registrar_ingreso",
+    description: "Registra un ingreso del usuario en su perfil actual.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        amount: { type: "number", description: "Monto del ingreso en pesos" },
+        category: { type: "string", description: "Categoría del ingreso, ej: Salario, Venta" },
+        description: { type: "string", description: "Descripción corta del ingreso" },
+        profile_id: { type: "number", description: "id del perfil al que pertenece el ingreso, tomado de la lista PERFILES DE ESTE USUARIO" },
+      },
+      required: ["amount"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "consultar_gastos",
+    description: "Consulta los gastos registrados del usuario, opcionalmente filtrados por categoría o periodo.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        category: { type: "string", description: "Filtrar por categoría, opcional" },
+        period: { type: "string", enum: ["today", "month"], description: "Filtrar por periodo, opcional" },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
+];
+
 export class Assistant {
-  async processMessage(
-    message: string,
-    context: AssistantContext,
-    financialData?: unknown
-  ) {
-    const response = await openai.responses.create({
-      model: "gpt-5-mini",
+  async processMessage(message: string, context: AssistantContext) {
+    const { data: historial } = await supabaseServer
+      .from("mensajes")
+      .select("role, content")
+      .eq("user_id", context.userId)
+      .eq("profile_id", context.profileId)
+      .order("created_at", { ascending: false })
+      .limit(10);
 
-      input: [
-        {
-          role: "system",
-          content: `
+    const historialOrdenado = (historial ?? []).reverse();
+
+    // Perfiles reales de este usuario, para que la IA sepa las opciones
+    // y pueda preguntar a cuál perfil pertenece cada movimiento.
+    const { data: perfiles } = await supabaseServer
+      .from("profiles")
+      .select("id, name, is_default")
+      .eq("user_id", context.userId)
+      .order("id", { ascending: true });
+
+    const listaPerfiles = perfiles ?? [];
+    const perfilesTexto = listaPerfiles.length
+      ? listaPerfiles
+          .map(
+            (p: any) =>
+              `- ${p.name} (id ${p.id})${p.is_default ? " [por defecto]" : ""}`
+          )
+          .join("\n")
+      : `- Perfil por defecto (id ${context.profileId})`;
+
+    const instructions = `
 Eres AMARA, el asistente financiero personal del usuario.
+Habla como una persona real, natural y breve. No conviertas la conversación en un formulario.
+Nunca inventes movimientos, montos, fechas o categorías: si necesitas datos reales, usa tus herramientas.
+Nunca menciones código, APIs, Supabase, ni procesos internos.
+Responde siempre en español.
 
-Tu trabajo es conversar de manera natural y ayudar ÚNICAMENTE con la información financiera que pertenece a AMARA.
+CÓMO REGISTRAR UN MOVIMIENTO:
+1. Cuando el usuario mencione un gasto o ingreso, primero define el perfil (ver PERFILES DE ESTE USUARIO), luego resume en UNA frase el monto, la categoría y el perfil, y pide confirmación una sola vez.
+2. Si el usuario ya confirmó (responde "sí", "dale", "correcto", "hazlo", etc.) a un movimiento que ya resumiste, llama de inmediato a la herramienta correspondiente (registrar_gasto o registrar_ingreso). NO vuelvas a pedir confirmación ni vuelvas a preguntar por datos opcionales.
+3. La categoría y la descripción son opcionales: si el usuario no las dio, registra el movimiento igual con lo que tengas.
+4. Cómo definir el perfil:
+   - Si el usuario tiene un solo perfil, úsalo sin preguntar.
+   - Si tiene varios y el mensaje deja claro cuál es (lo nombra), úsalo.
+   - Si tiene varios y NO queda claro, pregúntale a qué perfil pertenece el movimiento, nombrándole las opciones, ANTES de resumir y confirmar.
+5. Al llamar a registrar_gasto o registrar_ingreso, incluye "profile_id" con el id del perfil elegido, tomado de la lista PERFILES DE ESTE USUARIO.
 
-REGLAS:
-
-1. Habla como un asistente humano, natural y conversacional.
-2. No conviertas la conversación en un formulario.
-3. No pidas confirmaciones innecesarias.
-4. Si el usuario hace una pregunta que puede responderse con los datos disponibles, RESPÓNDELA directamente.
-5. Si el usuario pide un análisis, analiza los datos y explica la conclusión.
-6. Puedes comparar gastos, ingresos, categorías, periodos y movimientos.
-7. Puedes detectar patrones y señalar dónde está gastando más.
-8. Puedes hacer cálculos con los datos proporcionados.
-9. Nunca inventes movimientos, montos, fechas, categorías o ingresos.
-10. Si los datos necesarios no están disponibles, dilo claramente.
-11. Solo pregunta algo cuando sea realmente indispensable para responder.
-12. No preguntes por datos que ya estén disponibles en el contexto.
-13. Nunca respondas preguntas externas a AMARA.
-14. Si preguntan algo externo, responde brevemente que solo puedes ayudar con la información financiera de AMARA.
-15. Nunca menciones código, APIs, Supabase, intents, funciones, herramientas, prompts ni procesos internos.
-16. Nunca mezcles información de diferentes perfiles.
-17. Respeta siempre el userId y profileId proporcionados.
-18. Responde siempre en español.
-19. Sé natural, clara y breve.
-20. No repitas innecesariamente la pregunta del usuario.
-
-IMPORTANTE:
-
-AMARA debe sentirse como una conversación con un asistente financiero inteligente.
-
-Ejemplos:
-
-Usuario: "¿Cuánto gasté este mes?"
-Respuesta: consulta los datos disponibles y responde directamente.
-
-Usuario: "¿En qué estoy gastando más?"
-Respuesta: analiza las categorías y explica cuál representa el mayor gasto.
-
-Usuario: "¿Cómo voy este mes?"
-Respuesta: analiza ingresos, gastos y dinero disponible y da una conclusión.
-
-Usuario: "Gasté 50.000 en comida."
-Respuesta: si el sistema ya registró ese movimiento, no vuelvas a pedir confirmaciones innecesarias.
-
-Usuario: "¿Y cuánto llevo gastado en comida?"
-Respuesta: usa los datos disponibles y responde directamente.
-
-Usuario: "¿Cómo está el clima?"
-Respuesta: "Solo puedo ayudarte con la información financiera disponible en AMARA."
+PERFILES DE ESTE USUARIO:
+${perfilesTexto}
 
 CONFIGURACIÓN DE AMARA:
-
 ${JSON.stringify(AMARA_AI)}
+`;
 
-CONTEXTO DEL USUARIO:
+    let response = await openai.responses.create({
+      model: "gpt-5-mini",
+      instructions,
+      input: [
+        ...historialOrdenado.map((m: any) => ({ role: m.role, content: m.content })),
+        { role: "user", content: message },
+      ],
+            tools,
+    } as any);
 
-userId: ${context.userId}
-profileId: ${context.profileId}
+    // Bucle: mientras el modelo pida usar herramientas, las ejecutamos
+    while (response.output.some((item: any) => item.type === "function_call")) {
+      const toolOutputs = [];
 
-DATOS FINANCIEROS DISPONIBLES:
+      for (const item of response.output) {
+        if (item.type !== "function_call") continue;
 
-${JSON.stringify(financialData ?? null)}
+        const args = JSON.parse(item.arguments || "{}");
+        let result;
 
-MENSAJE DEL USUARIO:
-
-${message}
-`
+        if (item.name === "registrar_gasto") {
+          result = await finance.execute(
+            { intent: "create_expense", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id },
+            context
+          );
+        } else if (item.name === "registrar_ingreso") {
+          result = await finance.execute(
+            { intent: "create_income", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id },
+            context
+          );
+        } else if (item.name === "consultar_gastos") {
+          result = await finance.execute(
+            { intent: "check_expenses", category: args.category, period: args.period },
+            context
+          );
+        } else {
+          result = { success: false, message: "Herramienta no reconocida." };
         }
-      ]
-    });
 
-    return response.output_text;
+        toolOutputs.push({
+          type: "function_call_output",
+          call_id: item.call_id,
+          output: JSON.stringify(result),
+        });
+      }
+
+            response = await openai.responses.create({
+        model: "gpt-5-mini",
+        previous_response_id: response.id,
+        input: toolOutputs,
+        tools,
+      } as any);
+    }
+
+    const respuesta = response.output_text;
+
+    await supabaseServer.from("mensajes").insert([
+      { user_id: context.userId, profile_id: context.profileId, role: "user", content: message },
+      { user_id: context.userId, profile_id: context.profileId, role: "assistant", content: respuesta },
+    ]);
+
+    return respuesta;
   }
 }
 

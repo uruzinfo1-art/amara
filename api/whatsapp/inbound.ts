@@ -43,6 +43,12 @@ export default async function handler(
       });
     }
 
+    // Mensajes de activación del sandbox de Vonage ("Join <palabra>"): no son del cliente.
+    if (typeof text === "string" && /^\s*join\s/i.test(text)) {
+      console.log("Mensaje de activación del sandbox, ignorado:", text);
+      return res.status(200).json({ received: true, ignored: "sandbox_join" });
+    }
+
     // --- Protección contra mensajes duplicados de Vonage (Opción A) ---
     // Vonage reenvía el mismo mensaje si tardamos en responder. Usamos el
     // message_uuid como "huella" única (con un respaldo si no viniera).
@@ -77,6 +83,13 @@ export default async function handler(
       // Otro error al guardar la huella: lo registramos, pero no bloqueamos el mensaje.
       console.error("Error registrando huella anti-duplicados:", dedupeError);
     }
+
+    // Limpieza oportunista: borra huellas de más de 3 días para que la tabla no crezca sin fin.
+    const hace3dias = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    await supabaseServer
+      .from("whatsapp_dedupe")
+      .delete()
+      .lt("created_at", hace3dias);
 
     console.log(
   "SUPABASE URL:",

@@ -17,11 +17,9 @@ export class Finance {
          return await movementService.create(data, context);
 
       case "check_balance":
+      case "check_summary":
 
-        return {
-          success: true,
-          action: "balance_requested"
-        };
+        return await movementService.getResumen(data, context);
 
       case "check_expenses":
 

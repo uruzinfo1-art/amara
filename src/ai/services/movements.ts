@@ -1,29 +1,129 @@
 import { supabaseServer } from "../../lib/supabaseServer.js";
 
+// Fecha (YYYY-MM-DD) en zona horaria de Colombia (America/Bogota, UTC-5 fijo).
+function fechaBogota(base: Date = new Date()): string {
+  // "en-CA" produce el formato YYYY-MM-DD.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(base);
+}
+
+// Rango { desde, hasta } (hasta EXCLUSIVO) en fechas YYYY-MM-DD, hora Colombia.
+// Periodos soportados: hoy, ayer, ultimos_7_dias, mes, mes_pasado.
+function rangoPeriodo(period: string): { desde: string; hasta: string } | null {
+  const [y, m, d] = fechaBogota().split("-").map(Number);
+  // Date en UTC a mediodía: evita que sumar/restar días cruce de día por la zona.
+  const hoyUTC = new Date(Date.UTC(y, m - 1, d, 12));
+  const iso = (dt: Date) => dt.toISOString().split("T")[0];
+  const masDias = (dt: Date, n: number) => {
+    const c = new Date(dt);
+    c.setUTCDate(c.getUTCDate() + n);
+    return c;
+  };
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  switch (period) {
+    case "hoy":
+      return { desde: iso(hoyUTC), hasta: iso(masDias(hoyUTC, 1)) };
+    case "ayer":
+      return { desde: iso(masDias(hoyUTC, -1)), hasta: iso(hoyUTC) };
+    case "ultimos_7_dias":
+      return { desde: iso(masDias(hoyUTC, -6)), hasta: iso(masDias(hoyUTC, 1)) };
+    case "mes":
+      return {
+        desde: `${y}-${pad(m)}-01`,
+        hasta: m === 12 ? `${y + 1}-01-01` : `${y}-${pad(m + 1)}-01`,
+      };
+    case "mes_pasado": {
+      const py = m === 1 ? y - 1 : y;
+      const pm = m === 1 ? 12 : m - 1;
+      return { desde: `${py}-${pad(pm)}-01`, hasta: `${y}-${pad(m)}-01` };
+    }
+    default:
+      return null;
+  }
+}
+
+// Filtro de "gasto real", el mismo criterio que usa la app (ver FixedExpensesFab.tsx):
+// - tipo 'gasto'
+// - no anulado (active = true)
+// - que NO sea una plantilla de gasto fijo (is_fixed vacío/falso, o sin day_of_month)
+function soloGastosReales(query: any) {
+  return query
+    .eq("tipo", "gasto")
+    .eq("active", true)
+    .or("is_fixed.is.null,is_fixed.eq.false,day_of_month.is.null");
+}
+
+// Filtro de "ingreso real" (ver utils.ts isIncomeReal): tipo 'ingreso', no anulado,
+// que no sea movimiento de bolsillo, y que no sea una plantilla de ingreso fijo.
+function soloIngresosReales(query: any) {
+  return query
+    .eq("tipo", "ingreso")
+    .eq("active", true)
+    .not("categoria", "ilike", "bolsillo_%")
+    .or("is_fixed.is.null,is_fixed.eq.false,day_of_month.is.null");
+}
+
 export class MovementService {
   async create(
     data: any,
     context: { userId: string; profileId: number }
   ) {
-    
     console.log("Movimiento recibido:", data);
     console.log("Contexto:", context);
     if (!supabaseServer) {
-  return {
-    success: false,
-    error: "Supabase no está configurado.",
-  };
-}
+      return { success: false, error: "Supabase no está configurado." };
+    }
+
+    // M3: validar el monto antes de nada.
+    const monto = Number(data.amount);
+    if (!Number.isFinite(monto) || monto <= 0) {
+      return {
+        success: false,
+        error:
+          "El monto no es válido. Pídele al usuario el monto en pesos (un número mayor que 0).",
+      };
+    }
 
     const tipo =
-      data.intent === "create_expense"
-        ? "gasto"
-        : "ingreso";
+      data.intent === "create_expense" ? "gasto" : "ingreso";
 
-    // Perfil: el que eligió la IA (data.profileId); si no vino, el del contexto.
-    const profileId = data.profileId ?? context.profileId;
+    // --- Resolver el perfil (blindado: nunca asume en silencio) ---
+    let profileId = data.profileId;
 
-    // Verifica que ese perfil exista y pertenezca a este usuario.
+    if (!profileId) {
+      const { data: perfiles } = await supabaseServer
+        .from("profiles")
+        .select("id, name")
+        .eq("user_id", context.userId)
+        .order("id", { ascending: true });
+
+      if (!perfiles || perfiles.length === 0) {
+        return {
+          success: false,
+          error: "El usuario no tiene perfiles configurados.",
+        };
+      }
+
+      if (perfiles.length === 1) {
+        profileId = perfiles[0].id;
+      } else {
+        // Varios perfiles y la IA no indicó cuál: NO guardar, pedir el perfil.
+        return {
+          success: false,
+          need_profile: true,
+          profiles: perfiles.map((p: any) => ({ id: p.id, name: p.name })),
+          message:
+            "Hay varios perfiles. Pregúntale al usuario en cuál registrar este movimiento y vuelve a llamar la herramienta con profile_id. No adivines.",
+        };
+      }
+    }
+
+    // Verifica que el perfil (el que indicó la IA, o el único que hay) sea del usuario.
     const { data: perfil, error: perfilError } = await supabaseServer
       .from("profiles")
       .select("id")
@@ -33,10 +133,10 @@ export class MovementService {
 
     if (perfilError || !perfil) {
       console.error("Perfil no válido para este usuario:", profileId, perfilError);
-
       return {
         success: false,
-        error: "El perfil indicado no existe o no pertenece a este usuario.",
+        error:
+          "El perfil indicado no existe o no pertenece a este usuario. Pregúntale al usuario en cuál de sus perfiles registrar; no adivines.",
       };
     }
 
@@ -44,10 +144,10 @@ export class MovementService {
       .from("movimientos")
       .insert({
         tipo,
-        monto: data.amount,
+        monto,
         categoria: data.category || null,
         descripcion: data.description || null,
-        fecha: new Date().toISOString().split("T")[0],
+        fecha: fechaBogota(),
         user_id: context.userId,
         profile_id: profileId,
       })
@@ -56,77 +156,137 @@ export class MovementService {
 
     if (error) {
       console.error("Error guardando movimiento:", error);
-
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
 
     console.log("Movimiento guardado:", movimiento);
+    return { success: true, data: movimiento };
+  }
+
+  async getExpenses(
+    data: any,
+    context: { userId: string; profileId: number }
+  ) {
+    let query = supabaseServer
+      .from("movimientos")
+      .select("monto, categoria, descripcion, fecha, profile_id")
+      .eq("user_id", context.userId);
+
+    // A1: con profileId -> ese perfil; sin profileId -> todos los del usuario.
+    if (data.profileId) {
+      query = query.eq("profile_id", data.profileId);
+    }
+
+    // A2 + A3 + A5: mismo filtro de "gasto real" que la app.
+    query = soloGastosReales(query);
+
+    if (data.category) {
+      // A4: ilike sin comodines = igualdad ignorando mayúsculas/minúsculas.
+      query = query.ilike("categoria", data.category);
+    }
+
+    // M1/M2 + L1: rango de fechas del periodo, en hora Colombia.
+    if (data.period) {
+      const rango = rangoPeriodo(data.period);
+      if (rango) {
+        query = query.gte("fecha", rango.desde).lt("fecha", rango.hasta);
+      }
+    }
+
+    const { data: movimientos, error } = await query;
+
+    if (error) {
+      console.error("Error consultando gastos:", error);
+      return { success: false, error: error.message };
+    }
+
+    const total = (movimientos || []).reduce(
+      (sum: number, m: any) => sum + Number(m.monto || 0),
+      0
+    );
 
     return {
       success: true,
-      data: movimiento,
+      total,
+      alcance: data.profileId ? `perfil ${data.profileId}` : "todos los perfiles",
+      movimientos: movimientos || [],
     };
   }
-    async getExpenses(
-  data: any,
-  context: { userId: string; profileId: number }
-) {
-  let query = supabaseServer
-    .from("movimientos")
-    .select("monto, categoria, descripcion, fecha")
-    .eq("user_id", context.userId)
-    .eq("profile_id", context.profileId)
-    .eq("tipo", "gasto");
 
-  if (data.category) {
-    query = query.eq("categoria", data.category);
-  }
+  async getIncome(
+    data: any,
+    context: { userId: string; profileId: number }
+  ) {
+    let query = supabaseServer
+      .from("movimientos")
+      .select("monto, categoria, fecha, profile_id")
+      .eq("user_id", context.userId);
 
-  if (data.period === "today") {
-    const today = new Date().toISOString().split("T")[0];
-    query = query.eq("fecha", today);
-  }
+    if (data.profileId) {
+      query = query.eq("profile_id", data.profileId);
+    }
 
-  if (data.period === "month") {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
+    query = soloIngresosReales(query);
 
-    query = query
-      .gte("fecha", `${year}-${month}-01`)
-      .lt(
-        "fecha",
-        new Date(year, now.getMonth() + 1, 1)
-          .toISOString()
-          .split("T")[0]
-      );
-  }
+    if (data.period) {
+      const rango = rangoPeriodo(data.period);
+      if (rango) {
+        query = query.gte("fecha", rango.desde).lt("fecha", rango.hasta);
+      }
+    }
 
-  const { data: movimientos, error } = await query;
+    const { data: movimientos, error } = await query;
 
-  if (error) {
-    console.error("Error consultando gastos:", error);
+    if (error) {
+      console.error("Error consultando ingresos:", error);
+      return { success: false, error: error.message };
+    }
+
+    const total = (movimientos || []).reduce(
+      (sum: number, m: any) => sum + Number(m.monto || 0),
+      0
+    );
 
     return {
-      success: false,
-      error: error.message,
+      success: true,
+      total,
+      alcance: data.profileId ? `perfil ${data.profileId}` : "todos los perfiles",
+      movimientos: movimientos || [],
     };
   }
 
-  const total = (movimientos || []).reduce(
-    (sum, movimiento) => sum + Number(movimiento.monto || 0),
-    0
-  );
+  // M4: ingresos, gastos y disponible (versión simple = ingresos - gastos del periodo).
+  async getResumen(
+    data: any,
+    context: { userId: string; profileId: number }
+  ) {
+    const gastos: any = await this.getExpenses(
+      { profileId: data.profileId, period: data.period },
+      context
+    );
+    const ingresos: any = await this.getIncome(
+      { profileId: data.profileId, period: data.period },
+      context
+    );
 
-  return {
-    success: true,
-    total,
-    movimientos: movimientos || [],
-  };
-}
+    if (!gastos.success || !ingresos.success) {
+      return { success: false, error: gastos.error || ingresos.error };
+    }
+
+    const totalIngresos = Number(ingresos.total || 0);
+    const totalGastos = Number(gastos.total || 0);
+
+    return {
+      success: true,
+      alcance: data.profileId ? `perfil ${data.profileId}` : "todos los perfiles",
+      periodo: data.period ?? "todo",
+      ingresos: totalIngresos,
+      gastos: totalGastos,
+      disponible: totalIngresos - totalGastos,
+      nota: "disponible = ingresos - gastos del periodo. No incluye bolsillos ni remanente de meses anteriores.",
+    };
+  }
+
   async getMovements(
     context: { userId: string; profileId: number }
   ) {
@@ -134,22 +294,16 @@ export class MovementService {
       .from("movimientos")
       .select("id, tipo, monto, categoria, descripcion, fecha, profile_id")
       .eq("user_id", context.userId)
+      .eq("active", true)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Error consultando movimientos:", error);
-
-      return {
-        success: false,
-        error: error.message,
-      };
+      return { success: false, error: error.message };
     }
 
-    return {
-      success: true,
-      movimientos: data || [],
-    };
+    return { success: true, movimientos: data || [] };
   }
 }
 

@@ -51,13 +51,29 @@ const tools = [
   {
     type: "function",
     name: "consultar_gastos",
-    description: "Consulta los gastos registrados del usuario, opcionalmente filtrados por categoría o periodo.",
+    description: "Consulta los gastos registrados del usuario, opcionalmente filtrados por categoría, periodo o perfil.",
     strict: false,
     parameters: {
       type: "object",
       properties: {
         category: { type: "string", description: "Filtrar por categoría, opcional" },
-        period: { type: "string", enum: ["today", "month"], description: "Filtrar por periodo, opcional" },
+        period: { type: "string", enum: ["hoy", "ayer", "ultimos_7_dias", "mes", "mes_pasado"], description: "Filtrar por periodo, opcional" },
+        profile_id: { type: "number", description: "id del perfil a consultar (de PERFILES DE ESTE USUARIO). Omítelo para sumar todos los perfiles." },
+      },
+      required: [],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
+    name: "consultar_resumen",
+    description: "Devuelve ingresos, gastos y disponible (ingresos menos gastos) de un periodo. Úsalo para '¿cómo voy?', '¿cuánto gané?', '¿cuánto tengo disponible?'.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        period: { type: "string", enum: ["hoy", "ayer", "ultimos_7_dias", "mes", "mes_pasado"], description: "Periodo, opcional (por defecto: todo el historial)" },
+        profile_id: { type: "number", description: "id del perfil (de PERFILES DE ESTE USUARIO). Omítelo para sumar todos los perfiles." },
       },
       required: [],
       additionalProperties: false,
@@ -100,6 +116,7 @@ Eres AMARA, el asistente financiero personal del usuario.
 Habla como una persona real, natural y breve. No conviertas la conversación en un formulario.
 Nunca inventes movimientos, montos, fechas o categorías: si necesitas datos reales, usa tus herramientas.
 Nunca menciones código, APIs, Supabase, ni procesos internos.
+Nunca menciones a un cliente el id de un perfil: háblale solo por el nombre. El id es solo para las herramientas.
 Responde siempre en español.
 
 CÓMO REGISTRAR UN MOVIMIENTO:
@@ -111,6 +128,15 @@ CÓMO REGISTRAR UN MOVIMIENTO:
    - Si tiene varios y el mensaje deja claro cuál es (lo nombra), úsalo.
    - Si tiene varios y NO queda claro, pregúntale a qué perfil pertenece el movimiento, nombrándole las opciones, ANTES de resumir y confirmar.
 5. Al llamar a registrar_gasto o registrar_ingreso, incluye "profile_id" con el id del perfil elegido, tomado de la lista PERFILES DE ESTE USUARIO.
+6. Si una herramienta devuelve "need_profile", pregúntale al usuario en cuál de los perfiles de la lista registrar el movimiento y vuelve a llamar la herramienta con "profile_id". Nunca inventes un id de perfil.
+
+CÓMO CONSULTAR GASTOS Y RESUMEN:
+- Para gastos usa consultar_gastos. Para "¿cómo voy?", "¿cuánto gané?", "¿cuánto tengo disponible?" usa consultar_resumen.
+- Si el usuario nombra un perfil ("¿cuánto gasté en coculo?"), pasa ese profile_id.
+- Si tiene varios perfiles y no queda claro de cuál pregunta, pregúntale de cuál quiere el dato, o si quiere el total de todos.
+- Si quiere el total general de todo, llama a la herramienta SIN profile_id.
+- Al dar el resultado, aclara siempre a qué perfil corresponde ("gastaste $X en 3dsnaptech" o "$X en total, sumando todos los perfiles").
+- "disponible" es ingresos menos gastos del periodo; aclara que no incluye bolsillos ni remanente de meses anteriores.
 
 PERFILES DE ESTE USUARIO:
 ${perfilesTexto}
@@ -151,7 +177,12 @@ ${JSON.stringify(AMARA_AI)}
           );
         } else if (item.name === "consultar_gastos") {
           result = await finance.execute(
-            { intent: "check_expenses", category: args.category, period: args.period },
+            { intent: "check_expenses", category: args.category, period: args.period, profileId: args.profile_id },
+            context
+          );
+        } else if (item.name === "consultar_resumen") {
+          result = await finance.execute(
+            { intent: "check_summary", period: args.period, profileId: args.profile_id },
             context
           );
         } else {

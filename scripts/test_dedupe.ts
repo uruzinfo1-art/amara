@@ -34,8 +34,8 @@ function crearRes() {
   return res;
 }
 
-async function postear(etiqueta: string) {
-  const req: any = { method: "POST", body: fakeBody };
+async function postear(etiqueta: string, body: any = fakeBody) {
+  const req: any = { method: "POST", body };
   const res = crearRes();
   await handler(req, res);
   console.log(`${etiqueta} -> status ${res.statusCode} | body:`, res.body);
@@ -49,16 +49,30 @@ async function main() {
     const r1 = await postear("POST #1 (nuevo)   ");
     const r2 = await postear("POST #2 (repetido)");
 
-    const ok =
+    const okDedupe =
       r2.statusCode === 200 &&
       r2.body?.duplicate === true &&
       r1.body?.duplicate !== true;
 
+    // Mensaje de activación del sandbox: debe ignorarse sin procesarse.
+    const rJoin = await postear("POST 'Join shed said'", {
+      from: "000000000000",
+      to: "111111111111",
+      text: "Join shed said",
+      message_uuid: "test-join-" + Date.now(),
+      timestamp: new Date().toISOString(),
+    });
+    const okJoin =
+      rJoin.statusCode === 200 && rJoin.body?.ignored === "sandbox_join";
+
     console.log(
       "\n--- Resultado ---\n" +
-        (ok
-          ? "OK: el segundo POST fue detectado como duplicado y NO se reprocesó."
-          : "FALLO: el segundo POST no fue tratado como duplicado. Revisar.")
+        (okDedupe
+          ? "OK: el segundo POST fue detectado como duplicado y NO se reprocesó.\n"
+          : "FALLO: el segundo POST no fue tratado como duplicado.\n") +
+        (okJoin
+          ? "OK: el mensaje 'Join ...' fue ignorado."
+          : "FALLO: el mensaje 'Join ...' no fue ignorado.")
     );
   } finally {
     await supabase

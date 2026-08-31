@@ -59,12 +59,14 @@ function soloGastosReales(query: any) {
 }
 
 // Filtro de "ingreso real" (ver utils.ts isIncomeReal): tipo 'ingreso', no anulado,
-// que no sea movimiento de bolsillo, y que no sea una plantilla de ingreso fijo.
+// y que no sea una plantilla de ingreso fijo.
+// OJO: la exclusión de "bolsillo_" NO va aquí. Un .not(...ilike...) en SQL descarta
+// también las filas con categoria NULL (NOT (NULL ilike x) = NULL), y AMARA guarda
+// los ingresos sin categoría como NULL. Se filtra en código dentro de getIncome.
 function soloIngresosReales(query: any) {
   return query
     .eq("tipo", "ingreso")
     .eq("active", true)
-    .not("categoria", "ilike", "bolsillo_%")
     .or("is_fixed.is.null,is_fixed.eq.false,day_of_month.is.null");
 }
 
@@ -242,7 +244,13 @@ export class MovementService {
       return { success: false, error: error.message };
     }
 
-    const total = (movimientos || []).reduce(
+    // Excluir movimientos de bolsillo (ahorros), como hace la app (utils.ts isIncomeReal).
+    // startsWith maneja bien la categoria NULL.
+    const reales = (movimientos || []).filter(
+      (m: any) => !String(m.categoria ?? "").toLowerCase().startsWith("bolsillo_")
+    );
+
+    const total = reales.reduce(
       (sum: number, m: any) => sum + Number(m.monto || 0),
       0
     );
@@ -251,7 +259,7 @@ export class MovementService {
       success: true,
       total,
       alcance: data.profileId ? `perfil ${data.profileId}` : "todos los perfiles",
-      movimientos: movimientos || [],
+      movimientos: reales,
     };
   }
 

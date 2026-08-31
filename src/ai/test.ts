@@ -162,6 +162,38 @@ async function test() {
       resumenTodos.success && resumenTodos.alcance === "todos los perfiles"
     );
 
+    // === Bug ingreso sin categoría: DEBE contar en el resumen ===
+    const resumenAntes: any = await movementService.getResumen(
+      { profileId: objetivo.id },
+      context
+    );
+    const { data: ingSinCat } = await supabase
+      .from("movimientos")
+      .insert({
+        tipo: "ingreso",
+        monto: 700000,
+        categoria: null,
+        fecha: hoyBogota,
+        user_id: TEST_USER_ID,
+        profile_id: objetivo.id,
+        is_fixed: false,
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (ingSinCat?.id) idsCreados.push(ingSinCat.id);
+
+    const resumenDespues: any = await movementService.getResumen(
+      { profileId: objetivo.id },
+      context
+    );
+    check(
+      "ingreso sin categoría ($700.000) SÍ cuenta en el resumen",
+      Number(resumenDespues.ingresos) === Number(resumenAntes.ingresos) + 700000 &&
+        Number(resumenDespues.disponible) ===
+          Number(resumenAntes.disponible) + 700000
+    );
+
     // === M3 - validación de monto ===
     const m3a: any = await movementService.create(
       { intent: "create_expense", amount: -5, profileId: objetivo.id },

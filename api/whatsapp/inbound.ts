@@ -18,6 +18,10 @@ const vonage = new Vonage(
   }
 );
 
+// Vercel: dale hasta 60s a esta función (en vez de los 10s por defecto del plan free),
+// para que los turnos con varias llamadas a herramienta no se corten a la mitad.
+export const maxDuration = 60;
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -141,12 +145,18 @@ if (whatsappContactError) {
 
       console.log("RESPUESTA AMARA:", respuesta);
 
+      // Nunca enviar texto vacío a Vonage (fallaría y el usuario no vería nada).
+      const textoRespuesta =
+        typeof respuesta === "string" && respuesta.trim()
+          ? respuesta
+          : "Perdón, tuve un problema para responder. Intenta de nuevo.";
+
       await vonage.messages.send({
         channel: "whatsapp",
         messageType: "text",
         to: from,
         from: to,
-        text: respuesta,
+        text: textoRespuesta,
       });
 
       console.log("Respuesta enviada correctamente");

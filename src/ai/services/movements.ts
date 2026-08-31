@@ -268,14 +268,10 @@ export class MovementService {
     data: any,
     context: { userId: string; profileId: number }
   ) {
-    const gastos: any = await this.getExpenses(
-      { profileId: data.profileId, period: data.period },
-      context
-    );
-    const ingresos: any = await this.getIncome(
-      { profileId: data.profileId, period: data.period },
-      context
-    );
+    const [gastos, ingresos]: any[] = await Promise.all([
+      this.getExpenses({ profileId: data.profileId, period: data.period }, context),
+      this.getIncome({ profileId: data.profileId, period: data.period }, context),
+    ]);
 
     if (!gastos.success || !ingresos.success) {
       return { success: false, error: gastos.error || ingresos.error };

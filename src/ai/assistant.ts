@@ -155,8 +155,14 @@ ${JSON.stringify(AMARA_AI)}
             tools,
     } as any);
 
-    // Bucle: mientras el modelo pida usar herramientas, las ejecutamos
-    while (response.output.some((item: any) => item.type === "function_call")) {
+    // Bucle: ejecutamos herramientas mientras el modelo las pida, con tope de vueltas
+    // para no pasarnos del tiempo límite de la función en turnos muy largos.
+    let vueltas = 0;
+    while (
+      vueltas < 4 &&
+      response.output.some((item: any) => item.type === "function_call")
+    ) {
+      vueltas++;
       const toolOutputs = [];
 
       for (const item of response.output) {
@@ -204,7 +210,10 @@ ${JSON.stringify(AMARA_AI)}
       } as any);
     }
 
-    const respuesta = response.output_text;
+    // Nunca devolver vacío: si el modelo no produjo texto, respondemos algo útil.
+    const respuesta =
+      (response.output_text && response.output_text.trim()) ||
+      "Perdón, no te entendí bien. ¿Me lo repites de otra forma?";
 
     await supabaseServer.from("mensajes").insert([
       { user_id: context.userId, profile_id: context.profileId, role: "user", content: message },

@@ -22,6 +22,26 @@ const vonage = new Vonage(
 // para que los turnos con varias llamadas a herramienta no se corten a la mitad.
 export const maxDuration = 60;
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// El sandbox de Vonage limita a ~1 mensaje/seg. Si da 429, esperamos y reintentamos.
+async function enviarWhatsApp(payload: any, intentos = 3) {
+  for (let i = 1; i <= intentos; i++) {
+    try {
+      await vonage.messages.send(payload);
+      return;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 429 && i < intentos) {
+        console.log(`Vonage 429, reintento ${i}/${intentos - 1} en 1.5s`);
+        await sleep(1500);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse
@@ -151,7 +171,7 @@ if (whatsappContactError) {
           ? respuesta
           : "Perdón, tuve un problema para responder. Intenta de nuevo.";
 
-      await vonage.messages.send({
+      await enviarWhatsApp({
         channel: "whatsapp",
         messageType: "text",
         to: from,

@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
-import { User, Palette, Coins, LogOut, Calendar, AlertTriangle, Camera, Image as ImageIcon, Trash2, Loader2, ArrowLeft } from 'lucide-react';
+import { User, Palette, Coins, LogOut, Calendar, AlertTriangle, Camera, Image as ImageIcon, Trash2, Loader2, ArrowLeft, MessageCircle } from 'lucide-react';
 import { ProfilePicture } from '../components/ProfilePicture';
 import { supabase, hasSupabaseConfig } from '../lib/supabase';
 import TutorialSelector from "../components/TutorialSelector";
@@ -486,6 +486,23 @@ const [showTutorialSelector, setShowTutorialSelector] = useState(false);
             </Button>
 
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center space-x-2">
+            <MessageCircle className="w-5 h-5 text-primary" />
+            <span>Conectar con WhatsApp</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            Vincula tu WhatsApp para registrar y consultar tus finanzas por chat.
+          </p>
+          <Button variant="outline" className="w-full" onClick={() => navigate('/conectar-whatsapp')}>
+            Configurar
+          </Button>
         </CardContent>
       </Card>
 

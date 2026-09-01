@@ -20,6 +20,7 @@ import ProductsServices from './pages/ProductsServices';
 import BusinessHealth from './pages/BusinessHealth';
 import { Onboarding } from './components/Onboarding';
 import Tutorial from './pages/Tutorial';
+import ConectarWhatsApp from './pages/ConectarWhatsApp';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, loading } = useAuth();
@@ -109,6 +110,13 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Settings />
+            </Layout>
+          </ProtectedRoute>
+        } />
+        <Route path="/conectar-whatsapp" element={
+          <ProtectedRoute>
+            <Layout>
+              <ConectarWhatsApp />
             </Layout>
           </ProtectedRoute>
         } />

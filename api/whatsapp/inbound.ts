@@ -56,12 +56,20 @@ async function enviarWhatsApp(to: string, body: string, intentos = 3) {
 // para que el webhook conteste rápido y Meta no reintente ni desactive la URL.
 async function procesarMensaje(from: string, text: string) {
   try {
-    // Limpieza oportunista de huellas viejas (>3 días).
+    // Limpieza oportunista de huellas viejas (>3 días) y códigos vencidos.
     const hace3dias = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
     await supabaseServer
       .from("whatsapp_dedupe")
       .delete()
       .lt("created_at", hace3dias);
+    await supabaseServer
+      .from("whatsapp_link_codes")
+      .delete()
+      .lt("expires_at", new Date().toISOString());
+
+    // ¿El mensaje es un código de vinculación? Ej: "AMARA 7K3P9Q"
+    const mCodigo = text.trim().match(/^amara[\s:_-]*([a-z0-9]{6})$/i);
+    const codigo = mCodigo ? mCodigo[1].toUpperCase() : null;
 
     const { data: whatsappContact, error: whatsappContactError } =
       await supabaseServer
@@ -75,8 +83,54 @@ async function procesarMensaje(from: string, text: string) {
       console.error("Error buscando WhatsApp:", whatsappContactError);
       return;
     }
+
+    // --- Caso: el mensaje trae un código de vinculación ---
+    if (codigo) {
+      const { data: fila } = await supabaseServer
+        .from("whatsapp_link_codes")
+        .select("code, user_id, profile_id, expires_at")
+        .eq("code", codigo)
+        .maybeSingle();
+
+      if (!fila || new Date(fila.expires_at) < new Date()) {
+        await enviarWhatsApp(
+          from,
+          "Ese código no es válido o ya venció. Genera uno nuevo en la app: Ajustes → Conectar con WhatsApp."
+        );
+        return;
+      }
+
+      const { error: upErr } = await supabaseServer
+        .from("whatsapp_contacts")
+        .upsert(
+          { phone: from, user_id: fila.user_id, profile_id: fila.profile_id },
+          { onConflict: "phone" }
+        );
+
+      if (upErr) {
+        console.error("Error vinculando WhatsApp:", upErr);
+        await enviarWhatsApp(
+          from,
+          "Tuve un problema al conectar tu WhatsApp. Intenta de nuevo en un minuto."
+        );
+        return;
+      }
+
+      await supabaseServer.from("whatsapp_link_codes").delete().eq("code", codigo);
+      await enviarWhatsApp(
+        from,
+        '¡Listo! ✅ Tu WhatsApp quedó conectado a AMARA. Ya puedes registrar gastos e ingresos o preguntarme cómo vas. Por ejemplo: "gasté 20 mil en almuerzo".'
+      );
+      return;
+    }
+
+    // --- Caso: número no vinculado y sin código ---
     if (!whatsappContact) {
       console.log("Número de WhatsApp no registrado:", from);
+      await enviarWhatsApp(
+        from,
+        'Hola 👋 Soy AMARA. Para empezar, abre la app y entra a Ajustes → Conectar con WhatsApp, y envíame el código que te muestra (algo como "AMARA ABC123").'
+      );
       return;
     }
 

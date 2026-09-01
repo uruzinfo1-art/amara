@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { Vonage } from "@vonage/server-sdk";
 import { assistant } from "../../src/ai/assistant.js";
 import { createClient } from "@supabase/supabase-js";
 import { waitUntil } from "@vercel/functions";
@@ -9,42 +8,53 @@ const supabaseServer = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const vonage = new Vonage(
-  {
-    apiKey: process.env.VONAGE_API_KEY!,
-    apiSecret: process.env.VONAGE_API_SECRET!,
-  },
-  {
-    apiHost: "https://messages-sandbox.nexmo.com",
-  }
-);
+// --- WhatsApp Cloud API de Meta ---
+const META_API_VERSION = "v25.0";
+const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 
 // Vercel: dale hasta 60s a esta función (en vez de los 10s por defecto del plan free).
 export const maxDuration = 60;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// El sandbox de Vonage limita a ~1 mensaje/seg. Si da 429, esperamos y reintentamos.
-async function enviarWhatsApp(payload: any, intentos = 3) {
+// Envía un texto por WhatsApp usando la Cloud API de Meta.
+// Si Meta responde 429 (demasiadas peticiones) o 5xx, espera y reintenta.
+async function enviarWhatsApp(to: string, body: string, intentos = 3) {
+  const url = `https://graph.facebook.com/${META_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const payload = {
+    messaging_product: "whatsapp",
+    to,
+    type: "text",
+    text: { body },
+  };
+
   for (let i = 1; i <= intentos; i++) {
-    try {
-      await vonage.messages.send(payload);
-      return;
-    } catch (err: any) {
-      const status = err?.response?.status;
-      if (status === 429 && i < intentos) {
-        console.log(`Vonage 429, reintento ${i}/${intentos - 1} en 1.5s`);
-        await sleep(1500);
-        continue;
-      }
-      throw err;
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (resp.ok) return;
+
+    const detalle = await resp.text().catch(() => "");
+    if ((resp.status === 429 || resp.status >= 500) && i < intentos) {
+      console.log(`Meta ${resp.status}, reintento ${i}/${intentos - 1} en 1.5s`);
+      await sleep(1500);
+      continue;
     }
+    throw new Error(`Meta rechazó el envío (${resp.status}): ${detalle}`);
   }
 }
 
-// Trabajo pesado: corre en segundo plano DESPUÉS de responderle a Vonage,
-// para que Vonage reciba su "OK" rápido y no reenvíe el mismo mensaje.
-async function procesarMensaje(from: string, to: string, text: string) {
+// Trabajo pesado: corre en segundo plano DESPUÉS de responderle a Meta,
+// para que el webhook conteste rápido y Meta no reintente ni desactive la URL.
+async function procesarMensaje(from: string, text: string) {
   try {
     // Limpieza oportunista de huellas viejas (>3 días).
     const hace3dias = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
@@ -87,13 +97,7 @@ async function procesarMensaje(from: string, to: string, text: string) {
         ? respuesta
         : "Perdón, tuve un problema para responder. Intenta de nuevo.";
 
-    await enviarWhatsApp({
-      channel: "whatsapp",
-      messageType: "text",
-      to: from,
-      from: to,
-      text: textoRespuesta,
-    });
+    await enviarWhatsApp(from, textoRespuesta);
     console.log("Respuesta enviada correctamente");
   } catch (error) {
     console.error("Error procesando el mensaje:", error);
@@ -104,39 +108,51 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  // --- Verificación del webhook: Meta llama con GET UNA vez al conectarlo ---
   if (req.method === "GET") {
-    return res.status(200).send("AMARA WhatsApp inbound OK");
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode === "subscribe" && token && token === WHATSAPP_VERIFY_TOKEN) {
+      console.log("Webhook de Meta verificado correctamente");
+      return res.status(200).send(challenge);
+    }
+    console.warn("Verificación de webhook fallida (token no coincide)");
+    return res.status(403).send("Forbidden");
   }
 
   if (req.method === "POST") {
-    console.log("WhatsApp mensaje recibido:", req.body);
+    console.log("WhatsApp evento recibido:", JSON.stringify(req.body));
 
-    const from = req.body?.from;
-    const to = req.body?.to;
-    const text = req.body?.text;
+    // Meta anida todo. Un webhook puede traer un mensaje entrante o un aviso
+    // de estado (entregado/leído). Tomamos el primer mensaje entrante, si lo hay.
+    const value = req.body?.entry?.[0]?.changes?.[0]?.value;
+    const msg = value?.messages?.[0];
 
-    console.log("FROM:", from, "TO:", to, "MENSAJE:", text);
-
-    if (!from || !to) {
-      return res.status(400).json({ error: "Faltan from o to" });
+    // Sin mensaje entrante (avisos de estado u otros eventos): nada que procesar.
+    if (!msg) {
+      return res.status(200).json({ received: true, ignored: "no_message" });
     }
 
-    // Mensajes de activación del sandbox de Vonage ("Join <palabra>").
-    if (typeof text === "string" && /^\s*join\s/i.test(text)) {
-      console.log("Mensaje de activación del sandbox, ignorado:", text);
-      return res.status(200).json({ received: true, ignored: "sandbox_join" });
+    const from = msg.from; // número del cliente, solo dígitos, sin "+"
+    const text = msg.text?.body;
+
+    console.log("FROM:", from, "MENSAJE:", text);
+
+    if (!from) {
+      return res.status(200).json({ received: true, ignored: "no_from" });
     }
 
-    // Mensajes sin texto (imagen, audio, etc.): no hay nada que procesar.
+    // Mensajes sin texto (imagen, audio, ubicación, etc.): nada que procesar.
     if (!text || !String(text).trim()) {
       console.log("Mensaje sin texto, ignorado");
       return res.status(200).json({ received: true, ignored: "no_text" });
     }
 
-    // --- Anti-duplicados: huella única por mensaje ---
+    // --- Anti-duplicados: huella única por mensaje (Meta reintenta si tardamos) ---
     const fingerprint = String(
-      req.body?.message_uuid ??
-        `${from}|${text}|${req.body?.timestamp ?? ""}`
+      msg.id ?? `${from}|${text}|${msg.timestamp ?? ""}`
     );
 
     const { data: yaVisto } = await supabaseServer
@@ -162,10 +178,10 @@ export default async function handler(
       console.error("Error registrando huella anti-duplicados:", dedupeError);
     }
 
-    // Le respondemos YA a Vonage para que no reenvíe; el resto va en segundo plano.
+    // Le respondemos YA a Meta para que no reintente; el resto va en segundo plano.
     res.status(200).json({ received: true });
 
-    const trabajo = procesarMensaje(String(from), String(to), String(text));
+    const trabajo = procesarMensaje(String(from), String(text));
     try {
       waitUntil(trabajo);
     } catch {

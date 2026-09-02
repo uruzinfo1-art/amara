@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   Movimiento,
   Profile,
@@ -94,6 +94,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+  // Candado: evita crear el perfil por defecto dos veces cuando el cargador
+  // se dispara varias veces al iniciar sesión.
+  const bootstrapRef = useRef(false);
   useEffect(() => {
     if (!user) return;
 
@@ -110,6 +113,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return;
       }
       if (!data?.length) {
+  if (bootstrapRef.current) return; // ya se está creando, no repetir
+  bootstrapRef.current = true;
   await createProfile(
   user.user_metadata?.userName ||
   user.user_metadata?.full_name ||

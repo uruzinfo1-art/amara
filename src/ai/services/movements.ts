@@ -1,7 +1,7 @@
 import { supabaseServer } from "../../lib/supabaseServer.js";
 
 // Fecha (YYYY-MM-DD) en zona horaria de Colombia (America/Bogota, UTC-5 fijo).
-function fechaBogota(base: Date = new Date()): string {
+export function fechaBogota(base: Date = new Date()): string {
   // "en-CA" produce el formato YYYY-MM-DD.
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Bogota",
@@ -9,6 +9,23 @@ function fechaBogota(base: Date = new Date()): string {
     month: "2-digit",
     day: "2-digit",
   }).format(base);
+}
+
+// Valida una fecha "YYYY-MM-DD": formato correcto, fecha real de calendario y
+// no posterior a hoy (hora Colombia). Devuelve la fecha o null si no sirve.
+function fechaValida(s: string): string | null {
+  if (typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d, 12));
+  if (
+    dt.getUTCFullYear() !== y ||
+    dt.getUTCMonth() !== m - 1 ||
+    dt.getUTCDate() !== d
+  ) {
+    return null; // fecha inexistente, ej. 2026-02-31
+  }
+  if (s > fechaBogota()) return null; // en el futuro
+  return s;
 }
 
 // Rango { desde, hasta } (hasta EXCLUSIVO) en fechas YYYY-MM-DD, hora Colombia.
@@ -94,6 +111,20 @@ export class MovementService {
     const tipo =
       data.intent === "create_expense" ? "gasto" : "ingreso";
 
+    // Fecha: por defecto hoy (Colombia). Si la IA pasó una, se valida.
+    let fecha = fechaBogota();
+    if (data.date) {
+      const v = fechaValida(String(data.date));
+      if (!v) {
+        return {
+          success: false,
+          error:
+            "La fecha no es válida o está en el futuro. Pregúntale al usuario el día exacto (con mes y año) o registra con la fecha de hoy.",
+        };
+      }
+      fecha = v;
+    }
+
     // --- Resolver el perfil (blindado: nunca asume en silencio) ---
     let profileId = data.profileId;
 
@@ -149,7 +180,7 @@ export class MovementService {
         monto,
         categoria: data.category || null,
         descripcion: data.description || null,
-        fecha: fechaBogota(),
+        fecha,
         user_id: context.userId,
         profile_id: profileId,
       })

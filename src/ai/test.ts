@@ -279,6 +279,37 @@ async function test() {
       Number(trasAnulado.total) === Number(porPerfil.total)
     );
 
+    // === Fecha del movimiento (va al final: mete un gasto real que no debe
+    // contaminar las comprobaciones A2/A3 de arriba) ===
+    const ayerBogota = (() => {
+      const [y, m, d] = hoyBogota.split("-").map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d, 12));
+      dt.setUTCDate(dt.getUTCDate() - 1);
+      return dt.toISOString().split("T")[0];
+    })();
+
+    const conFecha: any = await movementService.create(
+      { intent: "create_expense", amount: 4321, profileId: objetivo.id, date: ayerBogota },
+      context
+    );
+    if (conFecha?.data?.id) idsCreados.push(conFecha.data.id);
+    check(
+      "Fecha - registrar con fecha de ayer guarda esa fecha",
+      conFecha.success === true && conFecha.data?.fecha === ayerBogota
+    );
+
+    const fechaFutura: any = await movementService.create(
+      { intent: "create_expense", amount: 4321, profileId: objetivo.id, date: "2099-01-01" },
+      context
+    );
+    check("Fecha - fecha en el futuro se rechaza", fechaFutura.success === false);
+
+    const fechaMala: any = await movementService.create(
+      { intent: "create_expense", amount: 4321, profileId: objetivo.id, date: "no-es-fecha" },
+      context
+    );
+    check("Fecha - texto que no es fecha se rechaza", fechaMala.success === false);
+
     console.log(`\n--- Resultado: ${pasan} OK, ${fallan} FALLA ---`);
   } catch (error) {
     console.error(error);

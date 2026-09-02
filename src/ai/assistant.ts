@@ -1,6 +1,7 @@
 import { openai } from "../lib/openai.js";
 import { AMARA_AI } from "./rules.js";
 import { finance } from "./finance.js";
+import { fechaBogota } from "./services/movements.js";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseServer = createClient(
@@ -26,6 +27,7 @@ const tools = [
         category: { type: "string", description: "Categoría del gasto, ej: Transporte, Alimentación" },
         description: { type: "string", description: "Descripción corta del gasto" },
         profile_id: { type: "number", description: "id del perfil al que pertenece el gasto, tomado de la lista PERFILES DE ESTE USUARIO" },
+        fecha: { type: "string", description: "Fecha del gasto en formato AAAA-MM-DD. Inclúyela SOLO si el usuario menciona un día distinto a hoy (ej. 'ayer', 'el lunes', 'el 3'). Si no menciona fecha, omite este campo." },
       },
       required: ["amount"],
       additionalProperties: false,
@@ -43,6 +45,7 @@ const tools = [
         category: { type: "string", description: "Categoría del ingreso, ej: Salario, Venta" },
         description: { type: "string", description: "Descripción corta del ingreso" },
         profile_id: { type: "number", description: "id del perfil al que pertenece el ingreso, tomado de la lista PERFILES DE ESTE USUARIO" },
+        fecha: { type: "string", description: "Fecha del ingreso en formato AAAA-MM-DD. Inclúyela SOLO si el usuario menciona un día distinto a hoy (ej. 'ayer', 'el lunes', 'el 3'). Si no menciona fecha, omite este campo." },
       },
       required: ["amount"],
       additionalProperties: false,
@@ -118,6 +121,7 @@ Nunca inventes movimientos, montos, fechas o categorías: si necesitas datos rea
 Nunca menciones código, APIs, Supabase, ni procesos internos.
 Nunca menciones a un cliente el id de un perfil: háblale solo por el nombre. El id es solo para las herramientas.
 Responde siempre en español.
+Hoy es ${fechaBogota()} (fecha de Colombia). Úsala para calcular fechas que el usuario mencione de forma relativa ("ayer", "antier", "el lunes pasado").
 
 CÓMO REGISTRAR UN MOVIMIENTO:
 1. Cuando el usuario mencione un gasto o ingreso, primero define el perfil (ver PERFILES DE ESTE USUARIO), luego resume en UNA frase el monto, la categoría y el perfil, y pide confirmación una sola vez.
@@ -129,6 +133,7 @@ CÓMO REGISTRAR UN MOVIMIENTO:
    - Si tiene varios y NO queda claro, pregúntale a qué perfil pertenece el movimiento, nombrándole las opciones, ANTES de resumir y confirmar.
 5. Al llamar a registrar_gasto o registrar_ingreso, incluye "profile_id" con el id del perfil elegido, tomado de la lista PERFILES DE ESTE USUARIO.
 6. Si una herramienta devuelve "need_profile", pregúntale al usuario en cuál de los perfiles de la lista registrar el movimiento y vuelve a llamar la herramienta con "profile_id". Nunca inventes un id de perfil.
+7. Fecha del movimiento: si el usuario dice cuándo ocurrió ("ayer", "el 3", "el lunes pasado"), calcula la fecha en formato AAAA-MM-DD y pásala en "fecha". Si el día es ambiguo (ej. "el 3"), usa la fecha más reciente que YA haya pasado. Si el usuario no menciona ninguna fecha, no envíes "fecha".
 
 CÓMO CONSULTAR GASTOS Y RESUMEN:
 - Para gastos usa consultar_gastos. Para "¿cómo voy?", "¿cuánto gané?", "¿cuánto tengo disponible?" usa consultar_resumen.
@@ -173,12 +178,12 @@ ${JSON.stringify(AMARA_AI)}
 
         if (item.name === "registrar_gasto") {
           result = await finance.execute(
-            { intent: "create_expense", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id },
+            { intent: "create_expense", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id, date: args.fecha },
             context
           );
         } else if (item.name === "registrar_ingreso") {
           result = await finance.execute(
-            { intent: "create_income", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id },
+            { intent: "create_income", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id, date: args.fecha },
             context
           );
         } else if (item.name === "consultar_gastos") {

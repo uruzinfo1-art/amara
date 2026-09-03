@@ -159,7 +159,7 @@ export class MovementService {
     // Verifica que el perfil (el que indicó la IA, o el único que hay) sea del usuario.
     const { data: perfil, error: perfilError } = await supabaseServer
       .from("profiles")
-      .select("id")
+      .select("id, profile_type")
       .eq("id", profileId)
       .eq("user_id", context.userId)
       .maybeSingle();
@@ -173,16 +173,46 @@ export class MovementService {
       };
     }
 
+    // Perfil de ciclo productivo: toda salida de dinero es "inversión".
+    // El dashboard la cuenta como capital a recuperar, sin importar en qué se gastó.
+    let tipoFinal = tipo;
+    let categoriaFinal: string | null = data.category || null;
+    if (tipo === "gasto" && perfil.profile_type === "business_productive") {
+      tipoFinal = "gasto_real";
+      categoriaFinal = "inversion";
+    }
+
+    // Socio que hizo el movimiento (opcional). Debe pertenecer a este perfil.
+    let partnerId: string | null = null;
+    if (data.partnerId) {
+      const { data: socio } = await supabaseServer
+        .from("partners")
+        .select("id")
+        .eq("id", data.partnerId)
+        .eq("profile_id", profileId)
+        .eq("active", true)
+        .maybeSingle();
+      if (!socio) {
+        return {
+          success: false,
+          error:
+            "El socio indicado no existe en este perfil. Pregúntale al usuario el nombre exacto del socio, o registra el movimiento a nombre de la empresa (sin socio).",
+        };
+      }
+      partnerId = socio.id;
+    }
+
     const { data: movimiento, error } = await supabaseServer
       .from("movimientos")
       .insert({
-        tipo,
+        tipo: tipoFinal,
         monto,
-        categoria: data.category || null,
+        categoria: categoriaFinal,
         descripcion: data.description || null,
         fecha,
         user_id: context.userId,
         profile_id: profileId,
+        partner_id: partnerId,
       })
       .select()
       .single();

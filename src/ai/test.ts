@@ -39,6 +39,8 @@ function check(nombre: string, cond: boolean) {
 
 async function test() {
   const idsCreados: number[] = [];
+  const perfilesTmp: number[] = [];
+  const sociosTmp: string[] = [];
   const msgsUsuario: string[] = ["Gasté 300 mil en gas", "sí"];
 
   try {
@@ -310,6 +312,87 @@ async function test() {
     );
     check("Fecha - texto que no es fecha se rechaza", fechaMala.success === false);
 
+    // === B5 - perfil de negocio: gasto = inversión, y socios ===
+    const { data: perfilProd } = await supabase
+      .from("profiles")
+      .insert({
+        user_id: TEST_USER_ID,
+        name: "TestProductivo",
+        profile_type: "business_productive",
+        is_default: false,
+        initial_investment: 0,
+      })
+      .select("id")
+      .single();
+    const { data: perfilCasa } = await supabase
+      .from("profiles")
+      .insert({
+        user_id: TEST_USER_ID,
+        name: "TestHogar",
+        profile_type: "home",
+        is_default: false,
+        initial_investment: 0,
+      })
+      .select("id")
+      .single();
+    if (perfilProd?.id) perfilesTmp.push(perfilProd.id);
+    if (perfilCasa?.id) perfilesTmp.push(perfilCasa.id);
+
+    const { data: socioTmp } = await supabase
+      .from("partners")
+      .insert({
+        user_id: TEST_USER_ID,
+        profile_id: perfilProd.id,
+        name: "SocioTest",
+        capital: 0,
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (socioTmp?.id) sociosTmp.push(socioTmp.id);
+
+    const invAuto: any = await movementService.create(
+      { intent: "create_expense", amount: 5000, category: "Semillas", profileId: perfilProd.id },
+      context
+    );
+    if (invAuto?.data?.id) idsCreados.push(invAuto.data.id);
+    check(
+      "B5 - gasto en perfil productivo se guarda como inversión (gasto_real / inversion)",
+      invAuto.success === true &&
+        invAuto.data?.tipo === "gasto_real" &&
+        invAuto.data?.categoria === "inversion"
+    );
+
+    const conSocio: any = await movementService.create(
+      { intent: "create_expense", amount: 6000, profileId: perfilProd.id, partnerId: socioTmp.id },
+      context
+    );
+    if (conSocio?.data?.id) idsCreados.push(conSocio.data.id);
+    check(
+      "B5 - movimiento con socio válido guarda partner_id",
+      conSocio.success === true &&
+        String(conSocio.data?.partner_id) === String(socioTmp.id)
+    );
+
+    const socioOtroPerfil: any = await movementService.create(
+      { intent: "create_expense", amount: 6000, profileId: perfilCasa.id, partnerId: socioTmp.id },
+      context
+    );
+    check(
+      "B5 - socio de otro perfil se rechaza",
+      socioOtroPerfil.success === false
+    );
+
+    const gastoHogar: any = await movementService.create(
+      { intent: "create_expense", amount: 7000, category: "Comida", profileId: perfilCasa.id },
+      context
+    );
+    if (gastoHogar?.data?.id) idsCreados.push(gastoHogar.data.id);
+    check(
+      "B5 - gasto en perfil no-productivo sigue siendo tipo 'gasto'",
+      gastoHogar.success === true && gastoHogar.data?.tipo === "gasto"
+    );
+
     console.log(`\n--- Resultado: ${pasan} OK, ${fallan} FALLA ---`);
   } catch (error) {
     console.error(error);
@@ -324,6 +407,14 @@ async function test() {
       .eq("user_id", TEST_USER_ID)
       .in("content", msgsUsuario);
     console.log("Mensajes de prueba borrados.");
+
+    if (sociosTmp.length) {
+      await supabase.from("partners").delete().in("id", sociosTmp);
+    }
+    if (perfilesTmp.length) {
+      await supabase.from("profiles").delete().in("id", perfilesTmp);
+      console.log("Perfiles de prueba borrados:", perfilesTmp.join(", "));
+    }
   }
 }
 

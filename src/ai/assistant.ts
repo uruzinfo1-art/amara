@@ -28,6 +28,7 @@ const tools = [
         description: { type: "string", description: "Descripción corta del gasto" },
         profile_id: { type: "number", description: "id del perfil al que pertenece el gasto, tomado de la lista PERFILES DE ESTE USUARIO" },
         fecha: { type: "string", description: "Fecha del gasto en formato AAAA-MM-DD. Inclúyela SOLO si el usuario menciona un día distinto a hoy (ej. 'ayer', 'el lunes', 'el 3'). Si no menciona fecha, omite este campo." },
+        socio: { type: "string", description: "Nombre del socio que hizo el movimiento, EXACTO como aparece en SOCIOS DE ESTE PERFIL. Omítelo si es de la empresa o si el usuario no menciona un socio." },
       },
       required: ["amount"],
       additionalProperties: false,
@@ -46,6 +47,7 @@ const tools = [
         description: { type: "string", description: "Descripción corta del ingreso" },
         profile_id: { type: "number", description: "id del perfil al que pertenece el ingreso, tomado de la lista PERFILES DE ESTE USUARIO" },
         fecha: { type: "string", description: "Fecha del ingreso en formato AAAA-MM-DD. Inclúyela SOLO si el usuario menciona un día distinto a hoy (ej. 'ayer', 'el lunes', 'el 3'). Si no menciona fecha, omite este campo." },
+        socio: { type: "string", description: "Nombre del socio que hizo el movimiento, EXACTO como aparece en SOCIOS DE ESTE PERFIL. Omítelo si es de la empresa o si el usuario no menciona un socio." },
       },
       required: ["amount"],
       additionalProperties: false,
@@ -114,6 +116,24 @@ export class Assistant {
           .join("\n")
       : `- Perfil por defecto (id ${context.profileId})`;
 
+    // Socios del perfil vinculado (solo perfiles de negocio suelen tenerlos).
+    const { data: socios } = await supabaseServer
+      .from("partners")
+      .select("id, name")
+      .eq("profile_id", context.profileId)
+      .eq("active", true)
+      .order("name", { ascending: true });
+
+    const listaSocios = socios ?? [];
+    const resolverSocio = (nombre?: string): string | undefined => {
+      if (!nombre) return undefined;
+      const n = String(nombre).trim().toLowerCase();
+      return listaSocios.find((s: any) => s.name.trim().toLowerCase() === n)?.id;
+    };
+    const sociosTexto = listaSocios.length
+      ? listaSocios.map((s: any) => `- ${s.name} (id ${s.id})`).join("\n")
+      : null;
+
     const instructions = `
 Eres AMARA, el asistente financiero personal del usuario.
 Habla como una persona real, natural y breve. No conviertas la conversación en un formulario.
@@ -134,6 +154,7 @@ CÓMO REGISTRAR UN MOVIMIENTO:
 5. Al llamar a registrar_gasto o registrar_ingreso, incluye "profile_id" con el id del perfil elegido, tomado de la lista PERFILES DE ESTE USUARIO.
 6. Si una herramienta devuelve "need_profile", pregúntale al usuario en cuál de los perfiles de la lista registrar el movimiento y vuelve a llamar la herramienta con "profile_id". Nunca inventes un id de perfil.
 7. Fecha del movimiento: si el usuario dice cuándo ocurrió ("ayer", "el 3", "el lunes pasado"), calcula la fecha en formato AAAA-MM-DD y pásala en "fecha". Si el día es ambiguo (ej. "el 3"), usa la fecha más reciente que YA haya pasado. Si el usuario no menciona ninguna fecha, no envíes "fecha".
+8. Socios: si el usuario dice que un socio hizo el movimiento ("Juan puso...", "aporte de María") y ese nombre está en SOCIOS DE ESTE PERFIL, pásalo en "socio" con el nombre EXACTO de la lista. Si el nombre no está en la lista, no lo inventes: registra sin socio o pregunta. Nunca ofrezcas crear un socio ni un perfil: eso solo se hace desde la app.
 
 CÓMO CONSULTAR GASTOS Y RESUMEN:
 - Para gastos usa consultar_gastos. Para "¿cómo voy?", "¿cuánto gané?", "¿cuánto tengo disponible?" usa consultar_resumen.
@@ -145,7 +166,7 @@ CÓMO CONSULTAR GASTOS Y RESUMEN:
 
 PERFILES DE ESTE USUARIO:
 ${perfilesTexto}
-
+${sociosTexto ? `\nSOCIOS DE ESTE PERFIL:\n${sociosTexto}\n` : ""}
 CONFIGURACIÓN DE AMARA:
 ${JSON.stringify(AMARA_AI)}
 `;
@@ -178,12 +199,12 @@ ${JSON.stringify(AMARA_AI)}
 
         if (item.name === "registrar_gasto") {
           result = await finance.execute(
-            { intent: "create_expense", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id, date: args.fecha },
+            { intent: "create_expense", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id, date: args.fecha, partnerId: resolverSocio(args.socio) },
             context
           );
         } else if (item.name === "registrar_ingreso") {
           result = await finance.execute(
-            { intent: "create_income", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id, date: args.fecha },
+            { intent: "create_income", amount: args.amount, category: args.category, description: args.description, profileId: args.profile_id, date: args.fecha, partnerId: resolverSocio(args.socio) },
             context
           );
         } else if (item.name === "consultar_gastos") {

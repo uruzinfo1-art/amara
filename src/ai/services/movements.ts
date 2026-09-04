@@ -226,6 +226,157 @@ export class MovementService {
     return { success: true, data: movimiento };
   }
 
+  // Mueve dinero de la cuenta principal a un bolsillo (ahorro). Replica lo que
+  // hace el botón de la app: fila en transferencias_bolsillos + sube el saldo
+  // del bolsillo + un movimiento tipo "ahorro". No permite guardar más de lo
+  // disponible (ingresos - gastos del perfil), igual que la app.
+  async saveToPocket(
+    data: any,
+    context: { userId: string; profileId: number }
+  ) {
+    if (!supabaseServer) {
+      return { success: false, error: "Supabase no está configurado." };
+    }
+
+    const monto = Number(data.amount);
+    if (!Number.isFinite(monto) || monto <= 0) {
+      return {
+        success: false,
+        error:
+          "El monto no es válido. Pídele al usuario el monto en pesos (un número mayor que 0).",
+      };
+    }
+
+    const profileId = data.profileId;
+    if (!profileId) {
+      return {
+        success: false,
+        need_profile: true,
+        message:
+          "Falta el perfil. Pregúntale al usuario en cuál perfil guardar y vuelve a llamar con profile_id.",
+      };
+    }
+
+    // El perfil debe ser del usuario.
+    const { data: perfil } = await supabaseServer
+      .from("profiles")
+      .select("id")
+      .eq("id", profileId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!perfil) {
+      return {
+        success: false,
+        error: "El perfil indicado no existe o no pertenece a este usuario.",
+      };
+    }
+
+    let fecha = fechaBogota();
+    if (data.date) {
+      const v = fechaValida(String(data.date));
+      if (!v) {
+        return {
+          success: false,
+          error:
+            "La fecha no es válida o está en el futuro. Pregúntale al usuario el día exacto o usa la de hoy.",
+        };
+      }
+      fecha = v;
+    }
+
+    // Bolsillo por nombre (igualdad sin distinguir mayúsculas). AMARA no crea bolsillos.
+    const { data: bolsillo } = await supabaseServer
+      .from("bolsillos")
+      .select("id, nombre, saldo")
+      .eq("profile_id", profileId)
+      .eq("active", true)
+      .ilike("nombre", String(data.pocket ?? ""))
+      .maybeSingle();
+    if (!bolsillo) {
+      return {
+        success: false,
+        error:
+          "No existe un bolsillo con ese nombre en este perfil. Pídele al usuario el nombre exacto del bolsillo. AMARA no puede crear bolsillos.",
+      };
+    }
+
+    // Disponible en la cuenta principal (mismo criterio que la app).
+    const { data: movs } = await supabaseServer
+      .from("movimientos")
+      .select("tipo, monto, categoria, is_fixed, day_of_month")
+      .eq("user_id", context.userId)
+      .eq("profile_id", profileId)
+      .eq("active", true);
+
+    const noConfig = (m: any) => !(m.is_fixed === true && m.day_of_month != null);
+    const cat = (m: any) => String(m.categoria ?? "");
+    const esIngresoReal = (m: any) =>
+      m.tipo === "ingreso" && !cat(m).startsWith("bolsillo_");
+    const esGasto = (m: any) =>
+      m.tipo === "gasto_real" ||
+      m.tipo === "gasto" ||
+      m.tipo === "gasto_ahorro" ||
+      m.tipo === "ahorro" ||
+      (m.tipo === "transferencia" && cat(m).startsWith("bolsillo_"));
+
+    const ingresos = (movs || [])
+      .filter((m: any) => noConfig(m) && esIngresoReal(m))
+      .reduce((s: number, m: any) => s + Number(m.monto || 0), 0);
+    const gastos = (movs || [])
+      .filter((m: any) => noConfig(m) && esGasto(m))
+      .reduce((s: number, m: any) => s + Number(m.monto || 0), 0);
+    const disponible = ingresos - gastos;
+
+    if (monto > disponible) {
+      return {
+        success: false,
+        error: `No alcanza: el disponible del perfil es ${disponible} y se pidió guardar ${monto}. Dile al usuario cuánto tiene disponible y que no alcanza.`,
+      };
+    }
+
+    // 1) Registro de la transferencia.
+    await supabaseServer.from("transferencias_bolsillos").insert({
+      bolsillo_id: bolsillo.id,
+      tipo: "deposito",
+      monto,
+      descripcion: `Ahorro → ${bolsillo.nombre}`,
+      user_id: context.userId,
+    });
+
+    // 2) Sube el saldo del bolsillo.
+    await supabaseServer
+      .from("bolsillos")
+      .update({ saldo: Number(bolsillo.saldo) + monto })
+      .eq("id", bolsillo.id);
+
+    // 3) Movimiento de ahorro (mismo formato que la app, para que borrarlo cuadre).
+    const { data: movimiento, error } = await supabaseServer
+      .from("movimientos")
+      .insert({
+        tipo: "ahorro",
+        monto,
+        categoria: "ahorro",
+        descripcion: `Ahorro → ${bolsillo.nombre}`,
+        fecha,
+        user_id: context.userId,
+        profile_id: profileId,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error guardando en bolsillo:", error);
+      return { success: false, error: error.message };
+    }
+
+    return {
+      success: true,
+      data: movimiento,
+      bolsillo: bolsillo.nombre,
+      saldo_nuevo: Number(bolsillo.saldo) + monto,
+    };
+  }
+
   async getExpenses(
     data: any,
     context: { userId: string; profileId: number }

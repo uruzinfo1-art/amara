@@ -84,6 +84,23 @@ const tools = [
       additionalProperties: false,
     },
   },
+  {
+    type: "function",
+    name: "guardar_en_bolsillo",
+    description: "Mueve dinero de la cuenta principal a un bolsillo de ahorro del usuario. Úsalo para 'guarda X en el bolsillo Y', 'aparta X para Y', 'mete X al ahorro de Y'.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        monto: { type: "number", description: "Monto a guardar, en pesos" },
+        bolsillo: { type: "string", description: "Nombre del bolsillo, EXACTO como aparece en BOLSILLOS DE ESTE PERFIL" },
+        fecha: { type: "string", description: "Fecha AAAA-MM-DD. Solo si el usuario menciona un día distinto a hoy; si no, omítelo." },
+        profile_id: { type: "number", description: "id del perfil (de PERFILES DE ESTE USUARIO)" },
+      },
+      required: ["monto", "bolsillo"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export class Assistant {
@@ -134,6 +151,18 @@ export class Assistant {
       ? listaSocios.map((s: any) => `- ${s.name} (id ${s.id})`).join("\n")
       : null;
 
+    // Bolsillos (ahorros) del perfil vinculado.
+    const { data: bolsillos } = await supabaseServer
+      .from("bolsillos")
+      .select("nombre")
+      .eq("profile_id", context.profileId)
+      .eq("active", true)
+      .order("nombre", { ascending: true });
+
+    const bolsillosTexto = (bolsillos ?? []).length
+      ? (bolsillos ?? []).map((b: any) => `- ${b.nombre}`).join("\n")
+      : null;
+
     const instructions = `
 Eres AMARA, el asistente financiero personal del usuario.
 Habla como una persona real, natural y breve. No conviertas la conversación en un formulario.
@@ -156,6 +185,11 @@ CÓMO REGISTRAR UN MOVIMIENTO:
 7. Fecha del movimiento: si el usuario dice cuándo ocurrió ("ayer", "el 3", "el lunes pasado"), calcula la fecha en formato AAAA-MM-DD y pásala en "fecha". Si el día es ambiguo (ej. "el 3"), usa la fecha más reciente que YA haya pasado. Si el usuario no menciona ninguna fecha, no envíes "fecha".
 8. Socios: si el usuario dice que un socio hizo el movimiento ("Juan puso...", "aporte de María") y ese nombre está en SOCIOS DE ESTE PERFIL, pásalo en "socio" con el nombre EXACTO de la lista. Si el nombre no está en la lista, no lo inventes: registra sin socio o pregunta. Nunca ofrezcas crear un socio ni un perfil: eso solo se hace desde la app.
 
+CÓMO GUARDAR EN UN BOLSILLO:
+- Cuando el usuario diga "guarda X en el bolsillo Y", "aparta X para Y", "mete X al ahorro de Y", resume el monto y el bolsillo, pide confirmación una vez, y al confirmar llama a guardar_en_bolsillo.
+- El bolsillo DEBE estar en BOLSILLOS DE ESTE PERFIL. Si el nombre no está, pregúntale al usuario cuál de la lista es. Nunca inventes ni ofrezcas crear un bolsillo (eso solo se hace en la app).
+- Si guardar_en_bolsillo responde que no alcanza, dile al usuario cuánto tiene disponible y que no alcanza; no reintentes con otro monto sin que él lo pida.
+
 CÓMO CONSULTAR GASTOS Y RESUMEN:
 - Para gastos usa consultar_gastos. Para "¿cómo voy?", "¿cuánto gané?", "¿cuánto tengo disponible?" usa consultar_resumen.
 - Si el usuario nombra un perfil ("¿cuánto gasté en coculo?"), pasa ese profile_id.
@@ -166,7 +200,7 @@ CÓMO CONSULTAR GASTOS Y RESUMEN:
 
 PERFILES DE ESTE USUARIO:
 ${perfilesTexto}
-${sociosTexto ? `\nSOCIOS DE ESTE PERFIL:\n${sociosTexto}\n` : ""}
+${sociosTexto ? `\nSOCIOS DE ESTE PERFIL:\n${sociosTexto}\n` : ""}${bolsillosTexto ? `\nBOLSILLOS DE ESTE PERFIL:\n${bolsillosTexto}\n` : ""}
 CONFIGURACIÓN DE AMARA:
 ${JSON.stringify(AMARA_AI)}
 `;
@@ -215,6 +249,11 @@ ${JSON.stringify(AMARA_AI)}
         } else if (item.name === "consultar_resumen") {
           result = await finance.execute(
             { intent: "check_summary", period: args.period, profileId: args.profile_id },
+            context
+          );
+        } else if (item.name === "guardar_en_bolsillo") {
+          result = await finance.execute(
+            { intent: "save_to_pocket", amount: args.monto, pocket: args.bolsillo, date: args.fecha, profileId: args.profile_id ?? context.profileId },
             context
           );
         } else {

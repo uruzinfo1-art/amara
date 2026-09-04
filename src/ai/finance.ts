@@ -25,6 +25,10 @@ export class Finance {
 
   return await movementService.getExpenses(data, context)
 
+      case "save_to_pocket":
+
+        return await movementService.saveToPocket(data, context);
+
       default:
 
         return {

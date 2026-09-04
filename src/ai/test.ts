@@ -41,6 +41,7 @@ async function test() {
   const idsCreados: number[] = [];
   const perfilesTmp: number[] = [];
   const sociosTmp: string[] = [];
+  const bolsillosTmp: (string | number)[] = [];
   const msgsUsuario: string[] = ["Gasté 300 mil en gas", "sí"];
 
   try {
@@ -393,6 +394,66 @@ async function test() {
       gastoHogar.success === true && gastoHogar.data?.tipo === "gasto"
     );
 
+    // === Guardar en bolsillo (perfil hogar) ===
+    const { data: bolsilloTmp } = await supabase
+      .from("bolsillos")
+      .insert({
+        user_id: TEST_USER_ID,
+        profile_id: perfilCasa.id,
+        nombre: "BolsilloTest",
+        tipo: "meta",
+        saldo: 0,
+        meta: 0,
+        icono: "🎯",
+        color: "#00e676",
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (bolsilloTmp?.id) bolsillosTmp.push(bolsilloTmp.id);
+
+    // El perfil hogar de prueba ya tiene el gasto de $7.000 de arriba; le metemos ingreso.
+    const ingParaBolsillo: any = await movementService.create(
+      { intent: "create_income", amount: 100000, profileId: perfilCasa.id },
+      context
+    );
+    if (ingParaBolsillo?.data?.id) idsCreados.push(ingParaBolsillo.data.id);
+
+    const guardado: any = await movementService.saveToPocket(
+      { amount: 50000, pocket: "bolsillotest", profileId: perfilCasa.id },
+      context
+    );
+    if (guardado?.data?.id) idsCreados.push(guardado.data.id);
+    const { data: bolTrasGuardar } = await supabase
+      .from("bolsillos")
+      .select("saldo")
+      .eq("id", bolsilloTmp.id)
+      .single();
+    check(
+      "Bolsillo - guardar $50.000 sube el saldo y crea movimiento 'ahorro'",
+      guardado.success === true &&
+        guardado.data?.tipo === "ahorro" &&
+        Number(bolTrasGuardar?.saldo) === 50000
+    );
+
+    const bolsilloInexistente: any = await movementService.saveToPocket(
+      { amount: 1000, pocket: "NoExisteEsteBolsillo", profileId: perfilCasa.id },
+      context
+    );
+    check(
+      "Bolsillo - nombre inexistente se rechaza",
+      bolsilloInexistente.success === false
+    );
+
+    const sinDisponible: any = await movementService.saveToPocket(
+      { amount: 999999999, pocket: "bolsillotest", profileId: perfilCasa.id },
+      context
+    );
+    check(
+      "Bolsillo - si no hay disponible, NO guarda",
+      sinDisponible.success === false
+    );
+
     console.log(`\n--- Resultado: ${pasan} OK, ${fallan} FALLA ---`);
   } catch (error) {
     console.error(error);
@@ -408,6 +469,13 @@ async function test() {
       .in("content", msgsUsuario);
     console.log("Mensajes de prueba borrados.");
 
+    if (bolsillosTmp.length) {
+      await supabase
+        .from("transferencias_bolsillos")
+        .delete()
+        .in("bolsillo_id", bolsillosTmp);
+      await supabase.from("bolsillos").delete().in("id", bolsillosTmp);
+    }
     if (sociosTmp.length) {
       await supabase.from("partners").delete().in("id", sociosTmp);
     }

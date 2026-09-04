@@ -42,9 +42,34 @@ async function test() {
   const perfilesTmp: number[] = [];
   const sociosTmp: string[] = [];
   const bolsillosTmp: (string | number)[] = [];
+  const perfilesCierreTmp: number[] = [];
   const msgsUsuario: string[] = ["Gasté 300 mil en gas", "sí"];
+  let remanenteOriginal: number | undefined;
 
   try {
+    const { data: userInicio } = await supabase.auth.admin.getUserById(TEST_USER_ID!);
+    remanenteOriginal = (userInicio?.user?.user_metadata as any)?.settings
+      ?.remanente_mes_anterior;
+
+    // Deja al día el perfil de prueba real antes de lo demás: si tiene un mes
+    // pendiente de cerrar (cuenta vieja usada en pruebas anteriores), cada
+    // conversación arrancaría con el aviso de cierre y descarrilaría el resto.
+    const cierrePrevio: any = await movementService.pendingClosure(context);
+    if (cierrePrevio) {
+      await movementService.closeMonth(
+        {
+          accion: "pasar",
+          monthKey: cierrePrevio.monthKey,
+          disponible: cierrePrevio.disponible,
+          profileId: context.profileId,
+        },
+        context
+      );
+      console.log(
+        `(Se cerró de paso un mes pendiente del perfil de prueba: ${cierrePrevio.mesTerminado})`
+      );
+    }
+
     const { data: perfiles } = await supabase
       .from("profiles")
       .select("id, name, is_default")
@@ -445,6 +470,96 @@ async function test() {
       bolsilloInexistente.success === false
     );
 
+    // === Cierre de mes ===
+    const { data: perfilCierre } = await supabase
+      .from("profiles")
+      .insert({
+        user_id: TEST_USER_ID,
+        name: "TestCierre",
+        profile_type: "home",
+        is_default: false,
+        initial_investment: 0,
+      })
+      .select("id")
+      .single();
+    if (perfilCierre?.id) {
+      perfilesTmp.push(perfilCierre.id);
+      perfilesCierreTmp.push(perfilCierre.id);
+    }
+
+    // Simula que el perfil ya tiene historial (un mes viejo), pero no el mes actual.
+    await supabase.from("monthly_cycles").insert({
+      user_id: TEST_USER_ID,
+      profile_id: perfilCierre.id,
+      month_key: "2000-01",
+      remaining_balance: 0,
+      action_taken: "initial_cycle",
+      closed_at: new Date().toISOString(),
+    });
+
+    const cierrePendiente: any = await movementService.pendingClosure({
+      userId: TEST_USER_ID!,
+      profileId: perfilCierre.id,
+    });
+    check(
+      "Cierre - detecta mes pendiente cuando hay historial y el mes actual no está cerrado",
+      !!cierrePendiente &&
+        typeof cierrePendiente.disponible === "number" &&
+        cierrePendiente.monthKey === hoyBogota.slice(0, 7)
+    );
+
+    const cerrarPasar: any = await movementService.closeMonth(
+      { accion: "pasar", monthKey: cierrePendiente.monthKey, disponible: 5000, profileId: perfilCierre.id },
+      context
+    );
+    check(
+      "Cierre - acción 'pasar' guarda el remanente",
+      cerrarPasar.success === true && cerrarPasar.remanente === 5000
+    );
+
+    const yaNoHayPendiente = await movementService.pendingClosure({
+      userId: TEST_USER_ID!,
+      profileId: perfilCierre.id,
+    });
+    check("Cierre - tras cerrar, ya no queda pendiente", yaNoHayPendiente === null);
+
+    const cerrarDeNuevo: any = await movementService.closeMonth(
+      { accion: "pasar", monthKey: cierrePendiente.monthKey, disponible: 1, profileId: perfilCierre.id },
+      context
+    );
+    check("Cierre - no deja cerrar el mismo mes dos veces", cerrarDeNuevo.success === false);
+
+    const { data: bolsilloCierre } = await supabase
+      .from("bolsillos")
+      .insert({
+        user_id: TEST_USER_ID,
+        profile_id: perfilCierre.id,
+        nombre: "BolsilloCierre",
+        tipo: "meta",
+        saldo: 0,
+        meta: 0,
+        icono: "🎯",
+        color: "#00e676",
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (bolsilloCierre?.id) bolsillosTmp.push(bolsilloCierre.id);
+
+    const cerrarGuardar: any = await movementService.closeMonth(
+      { accion: "guardar", bolsillo: "bolsillocierre", monthKey: "2099-01", disponible: 30000, profileId: perfilCierre.id },
+      context
+    );
+    const { data: bolTrasCierre } = await supabase
+      .from("bolsillos")
+      .select("saldo")
+      .eq("id", bolsilloCierre.id)
+      .single();
+    check(
+      "Cierre - acción 'guardar' sube el saldo del bolsillo",
+      cerrarGuardar.success === true && Number(bolTrasCierre?.saldo) === 30000
+    );
+
     const sinDisponible: any = await movementService.saveToPocket(
       { amount: 999999999, pocket: "bolsillotest", profileId: perfilCasa.id },
       context
@@ -479,9 +594,28 @@ async function test() {
     if (sociosTmp.length) {
       await supabase.from("partners").delete().in("id", sociosTmp);
     }
+    if (perfilesCierreTmp.length) {
+      await supabase.from("monthly_cycles").delete().in("profile_id", perfilesCierreTmp);
+      await supabase.from("movimientos").delete().in("profile_id", perfilesCierreTmp);
+    }
     if (perfilesTmp.length) {
       await supabase.from("profiles").delete().in("id", perfilesTmp);
       console.log("Perfiles de prueba borrados:", perfilesTmp.join(", "));
+    }
+    if (TEST_USER_ID) {
+      try {
+        const { data: userAhora } = await supabase.auth.admin.getUserById(TEST_USER_ID);
+        const meta = (userAhora?.user?.user_metadata as any) ?? {};
+        await supabase.auth.admin.updateUserById(TEST_USER_ID, {
+          user_metadata: {
+            ...meta,
+            settings: { ...(meta.settings ?? {}), remanente_mes_anterior: remanenteOriginal },
+          },
+        });
+        console.log("Remanente de la cuenta de prueba restaurado a:", remanenteOriginal);
+      } catch (e) {
+        console.error("No se pudo restaurar el remanente de prueba:", e);
+      }
     }
   }
 }

@@ -1,7 +1,7 @@
 import { openai } from "../lib/openai.js";
 import { AMARA_AI } from "./rules.js";
 import { finance } from "./finance.js";
-import { fechaBogota } from "./services/movements.js";
+import { fechaBogota, movementService } from "./services/movements.js";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseServer = createClient(
@@ -101,6 +101,21 @@ const tools = [
       additionalProperties: false,
     },
   },
+  {
+    type: "function",
+    name: "cerrar_mes",
+    description: "Cierra el mes anterior con la decisión del usuario sobre el dinero restante. Úsalo SOLO cuando exista un CIERRE DE MES PENDIENTE y el usuario ya haya elegido qué hacer.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        accion: { type: "string", enum: ["guardar", "pasar", "reiniciar"], description: "guardar = mandar el restante a un bolsillo; pasar = dejarlo como saldo inicial del mes nuevo; reiniciar = dejarlo en cero" },
+        bolsillo: { type: "string", description: "Nombre del bolsillo (de BOLSILLOS DE ESTE PERFIL). Solo si accion = 'guardar'." },
+      },
+      required: ["accion"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 export class Assistant {
@@ -163,6 +178,11 @@ export class Assistant {
       ? (bolsillos ?? []).map((b: any) => `- ${b.nombre}`).join("\n")
       : null;
 
+    // ¿Quedó el mes anterior sin cerrar? (se pregunta al primer mensaje del mes nuevo)
+    const cierre = await movementService
+      .pendingClosure(context)
+      .catch(() => null);
+
     const instructions = `
 Eres AMARA, el asistente financiero personal del usuario.
 Habla como una persona real, natural y breve. No conviertas la conversación en un formulario.
@@ -185,7 +205,15 @@ CÓMO REGISTRAR UN MOVIMIENTO:
 7. Fecha del movimiento: si el usuario dice cuándo ocurrió ("ayer", "el 3", "el lunes pasado"), calcula la fecha en formato AAAA-MM-DD y pásala en "fecha". Si el día es ambiguo (ej. "el 3"), usa la fecha más reciente que YA haya pasado. Si el usuario no menciona ninguna fecha, no envíes "fecha".
 8. Socios: si el usuario dice que un socio hizo el movimiento ("Juan puso...", "aporte de María") y ese nombre está en SOCIOS DE ESTE PERFIL, pásalo en "socio" con el nombre EXACTO de la lista. Si el nombre no está en la lista, no lo inventes: registra sin socio o pregunta. Nunca ofrezcas crear un socio ni un perfil: eso solo se hace desde la app.
 
-CÓMO GUARDAR EN UN BOLSILLO:
+${cierre ? `CIERRE DE MES PENDIENTE:
+Terminó ${cierre.mesTerminado} y quedó sin cerrar. Disponible restante de ese mes: $${cierre.disponible}.
+ANTES de responder cualquier otra cosa del usuario, dile en una frase que terminó ${cierre.mesTerminado} con $${cierre.disponible} disponibles y pregúntale qué hacer con ese dinero, con estas 3 opciones:
+1) guardarlo en un bolsillo (pregúntale en cuál, de BOLSILLOS DE ESTE PERFIL)
+2) pasarlo al mes nuevo como saldo inicial
+3) dejarlo en cero
+Cuando el usuario elija, llama a cerrar_mes con la acción ("guardar" / "pasar" / "reiniciar") y, si eligió guardar, el nombre del bolsillo. Si nombra un bolsillo que no está en la lista, pregúntale cuál. No sigas con otros temas hasta cerrar esto.
+
+` : ""}CÓMO GUARDAR EN UN BOLSILLO:
 - Cuando el usuario diga "guarda X en el bolsillo Y", "aparta X para Y", "mete X al ahorro de Y", resume el monto y el bolsillo, pide confirmación una vez, y al confirmar llama a guardar_en_bolsillo.
 - El bolsillo DEBE estar en BOLSILLOS DE ESTE PERFIL. Si el nombre no está, pregúntale al usuario cuál de la lista es. Nunca inventes ni ofrezcas crear un bolsillo (eso solo se hace en la app).
 - Si guardar_en_bolsillo responde que no alcanza, dile al usuario cuánto tiene disponible y que no alcanza; no reintentes con otro monto sin que él lo pida.
@@ -256,6 +284,13 @@ ${JSON.stringify(AMARA_AI)}
             { intent: "save_to_pocket", amount: args.monto, pocket: args.bolsillo, date: args.fecha, profileId: args.profile_id ?? context.profileId },
             context
           );
+        } else if (item.name === "cerrar_mes") {
+          result = cierre
+            ? await finance.execute(
+                { intent: "close_month", accion: args.accion, bolsillo: args.bolsillo, monthKey: cierre.monthKey, disponible: cierre.disponible, profileId: context.profileId },
+                context
+              )
+            : { success: false, message: "No hay ningún cierre de mes pendiente." };
         } else {
           result = { success: false, message: "Herramienta no reconocida." };
         }

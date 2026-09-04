@@ -377,6 +377,212 @@ export class MovementService {
     };
   }
 
+  // --- Cierre de mes (mismo modelo que AutoClosureModal de la app) ---
+
+  // ¿Quedó el mes anterior sin cerrar para este perfil? Devuelve null si no hay
+  // nada pendiente (o si es el primer mes, en cuyo caso crea el ciclo inicial).
+  async pendingClosure(context: { userId: string; profileId: number }) {
+    if (!supabaseServer) return null;
+
+    const mesActual = fechaBogota().slice(0, 7); // YYYY-MM
+
+    const { data: ciclos } = await supabaseServer
+      .from("monthly_cycles")
+      .select("month_key")
+      .eq("user_id", context.userId)
+      .eq("profile_id", context.profileId);
+
+    const filas = ciclos ?? [];
+    if (filas.some((c: any) => c.month_key === mesActual)) return null; // ya cerrado
+
+    if (filas.length === 0) {
+      // Primer mes del perfil: se registra el ciclo inicial y no se pregunta.
+      await supabaseServer.from("monthly_cycles").insert({
+        user_id: context.userId,
+        profile_id: context.profileId,
+        month_key: mesActual,
+        remaining_balance: 0,
+        action_taken: "initial_cycle",
+        closed_at: new Date().toISOString(),
+      });
+      return null;
+    }
+
+    // Hay historial y este mes no está cerrado -> pendiente. Calcular disponible.
+    const [y, m] = mesActual.split("-").map(Number);
+    const py = m === 1 ? y - 1 : y;
+    const pm = m === 1 ? 12 : m - 1;
+    const clavePrev = `${py}-${String(pm).padStart(2, "0")}`;
+
+    const { data: movs } = await supabaseServer
+      .from("movimientos")
+      .select("tipo, monto, categoria, is_fixed, day_of_month")
+      .eq("user_id", context.userId)
+      .eq("profile_id", context.profileId)
+      .eq("active", true)
+      .gte("fecha", `${clavePrev}-01`)
+      .lt("fecha", `${mesActual}-01`);
+
+    const noConfig = (x: any) => !(x.is_fixed === true && x.day_of_month != null);
+    const cat = (x: any) => String(x.categoria ?? "");
+    const esIngreso = (x: any) =>
+      x.tipo === "ingreso" && !cat(x).startsWith("bolsillo_");
+    const esGasto = (x: any) =>
+      ["gasto_real", "gasto", "gasto_ahorro", "ahorro"].includes(x.tipo) ||
+      (x.tipo === "transferencia" && cat(x).startsWith("bolsillo_"));
+
+    const ingresos = (movs || [])
+      .filter((x: any) => noConfig(x) && esIngreso(x))
+      .reduce((s: number, x: any) => s + Number(x.monto || 0), 0);
+    const gastos = (movs || [])
+      .filter((x: any) => noConfig(x) && esGasto(x))
+      .reduce((s: number, x: any) => s + Number(x.monto || 0), 0);
+
+    let remanente = 0;
+    try {
+      const { data: userRes } = await supabaseServer.auth.admin.getUserById(
+        context.userId
+      );
+      remanente = Number(
+        (userRes?.user?.user_metadata as any)?.settings?.remanente_mes_anterior || 0
+      );
+    } catch {
+      /* si no se puede leer, se asume 0 */
+    }
+
+    const meses = [
+      "enero", "febrero", "marzo", "abril", "mayo", "junio",
+      "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+    ];
+
+    return {
+      monthKey: mesActual,
+      mesTerminado: `${meses[pm - 1]} ${py}`,
+      disponible: remanente + ingresos - gastos,
+    };
+  }
+
+  // Ejecuta la decisión del usuario sobre el dinero restante del mes anterior.
+  // data: { accion: "guardar"|"pasar"|"reiniciar", bolsillo?, monthKey, disponible, profileId }
+  async closeMonth(
+    data: any,
+    context: { userId: string; profileId: number }
+  ) {
+    if (!supabaseServer) {
+      return { success: false, error: "Supabase no está configurado." };
+    }
+
+    const monthKey = String(data.monthKey || "");
+    const profileId = data.profileId;
+    const disponible = Number(data.disponible) || 0;
+    const accion = data.accion;
+
+    if (!/^\d{4}-\d{2}$/.test(monthKey) || !profileId) {
+      return { success: false, error: "Faltan datos del cierre (mes o perfil)." };
+    }
+    if (!["guardar", "pasar", "reiniciar"].includes(accion)) {
+      return { success: false, error: "Acción de cierre no válida." };
+    }
+
+    const { data: perfil } = await supabaseServer
+      .from("profiles")
+      .select("id")
+      .eq("id", profileId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!perfil) {
+      return { success: false, error: "El perfil no pertenece a este usuario." };
+    }
+
+    const { data: yaCerrado } = await supabaseServer
+      .from("monthly_cycles")
+      .select("id")
+      .eq("user_id", context.userId)
+      .eq("profile_id", profileId)
+      .eq("month_key", monthKey)
+      .maybeSingle();
+    if (yaCerrado) {
+      return { success: false, error: "Ese mes ya fue cerrado." };
+    }
+
+    let actionTaken: string;
+    let nuevoRemanente: number;
+
+    if (accion === "guardar") {
+      const { data: bolsillo } = await supabaseServer
+        .from("bolsillos")
+        .select("id, nombre, saldo")
+        .eq("profile_id", profileId)
+        .eq("active", true)
+        .ilike("nombre", String(data.bolsillo ?? ""))
+        .maybeSingle();
+      if (!bolsillo) {
+        return {
+          success: false,
+          error:
+            "No existe un bolsillo con ese nombre en este perfil. Pregúntale al usuario cuál de la lista.",
+        };
+      }
+
+      // Último día del mes que terminó (mes anterior a monthKey).
+      const [y, m] = monthKey.split("-").map(Number);
+      const ultimoDia = new Date(Date.UTC(y, m - 1, 0, 12))
+        .toISOString()
+        .split("T")[0];
+
+      await supabaseServer
+        .from("bolsillos")
+        .update({ saldo: Number(bolsillo.saldo) + disponible })
+        .eq("id", bolsillo.id);
+
+      await supabaseServer.from("movimientos").insert({
+        tipo: "ahorro",
+        monto: disponible,
+        categoria: `bolsillo_${bolsillo.id}`,
+        descripcion: `Ahorro automático → ${bolsillo.nombre}`,
+        fecha: ultimoDia,
+        user_id: context.userId,
+        profile_id: profileId,
+      });
+
+      actionTaken = "save_to_pocket";
+      nuevoRemanente = 0;
+    } else if (accion === "pasar") {
+      actionTaken = "carry_over";
+      nuevoRemanente = disponible;
+    } else {
+      actionTaken = "ignore";
+      nuevoRemanente = 0;
+    }
+
+    await supabaseServer.from("monthly_cycles").insert({
+      user_id: context.userId,
+      profile_id: profileId,
+      month_key: monthKey,
+      remaining_balance: disponible,
+      action_taken: actionTaken,
+      closed_at: new Date().toISOString(),
+    });
+
+    // Guardar el nuevo remanente en la cuenta (settings viven en user_metadata).
+    try {
+      const { data: userRes } = await supabaseServer.auth.admin.getUserById(
+        context.userId
+      );
+      const meta = (userRes?.user?.user_metadata as any) ?? {};
+      await supabaseServer.auth.admin.updateUserById(context.userId, {
+        user_metadata: {
+          ...meta,
+          settings: { ...(meta.settings ?? {}), remanente_mes_anterior: nuevoRemanente },
+        },
+      });
+    } catch (e) {
+      console.error("No se pudo actualizar el remanente en la cuenta:", e);
+    }
+
+    return { success: true, accion, disponible, remanente: nuevoRemanente };
+  }
+
   async getExpenses(
     data: any,
     context: { userId: string; profileId: number }

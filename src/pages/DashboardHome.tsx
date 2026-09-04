@@ -625,6 +625,7 @@ export default function DashboardHome() {
       <AutoClosureModal isOpen={isClosureOpen} onClose={() => setIsClosureOpen(false)} disponiblePrev={disponiblePrevState} currentMonth={monthToCloseState} />
         {showCreateProfileModal && (
  <CreateProfileModal
+  onClose={() => setShowCreateProfileModal(false)}
   onSelect={async (tipo) => {
   const nombre = prompt("Nombre del perfil");
 

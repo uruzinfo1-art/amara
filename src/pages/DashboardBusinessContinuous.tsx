@@ -704,6 +704,10 @@ Ventas del día
       )}
       {showCreateProfileModal && (
   <CreateProfileModal
+    onClose={() => {
+      setShowCreateProfileModal(false);
+      setShowProfileMenu(false);
+    }}
     onSelect={async (tipo) => {
       const nombre = prompt("Nombre del perfil");
       if (!nombre) return;

@@ -2,55 +2,17 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { assistant } from "../../src/ai/assistant.js";
 import { createClient } from "@supabase/supabase-js";
 import { waitUntil } from "@vercel/functions";
+import { enviarWhatsApp } from "../../src/lib/whatsapp.js";
 
 const supabaseServer = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// --- WhatsApp Cloud API de Meta ---
-const META_API_VERSION = "v25.0";
-const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 
 // Vercel: dale hasta 60s a esta función (en vez de los 10s por defecto del plan free).
 export const maxDuration = 60;
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-// Envía un texto por WhatsApp usando la Cloud API de Meta.
-// Si Meta responde 429 (demasiadas peticiones) o 5xx, espera y reintenta.
-async function enviarWhatsApp(to: string, body: string, intentos = 3) {
-  const url = `https://graph.facebook.com/${META_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
-  const payload = {
-    messaging_product: "whatsapp",
-    to,
-    type: "text",
-    text: { body },
-  };
-
-  for (let i = 1; i <= intentos; i++) {
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (resp.ok) return;
-
-    const detalle = await resp.text().catch(() => "");
-    if ((resp.status === 429 || resp.status >= 500) && i < intentos) {
-      console.log(`Meta ${resp.status}, reintento ${i}/${intentos - 1} en 1.5s`);
-      await sleep(1500);
-      continue;
-    }
-    throw new Error(`Meta rechazó el envío (${resp.status}): ${detalle}`);
-  }
-}
 
 // Trabajo pesado: corre en segundo plano DESPUÉS de responderle a Meta,
 // para que el webhook conteste rápido y Meta no reintente ni desactive la URL.

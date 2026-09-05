@@ -377,6 +377,88 @@ export class MovementService {
     };
   }
 
+  // Saca dinero de un bolsillo. Replica retirarDeBolsillo de la app: fila en
+  // transferencias_bolsillos (tipo 'retiro') + baja el saldo. No permite sacar
+  // más de lo que tiene el bolsillo. No crea bolsillos.
+  async withdrawFromPocket(
+    data: any,
+    context: { userId: string; profileId: number }
+  ) {
+    if (!supabaseServer) {
+      return { success: false, error: "Supabase no está configurado." };
+    }
+
+    const monto = Number(data.amount);
+    if (!Number.isFinite(monto) || monto <= 0) {
+      return {
+        success: false,
+        error:
+          "El monto no es válido. Pídele al usuario el monto en pesos (un número mayor que 0).",
+      };
+    }
+
+    const profileId = data.profileId;
+    if (!profileId) {
+      return { success: false, error: "Falta el perfil." };
+    }
+
+    const { data: perfil } = await supabaseServer
+      .from("profiles")
+      .select("id")
+      .eq("id", profileId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
+    if (!perfil) {
+      return {
+        success: false,
+        error: "El perfil indicado no existe o no pertenece a este usuario.",
+      };
+    }
+
+    const { data: bolsillo } = await supabaseServer
+      .from("bolsillos")
+      .select("id, nombre, saldo")
+      .eq("profile_id", profileId)
+      .eq("active", true)
+      .ilike("nombre", String(data.pocket ?? ""))
+      .maybeSingle();
+    if (!bolsillo) {
+      return {
+        success: false,
+        error:
+          "No existe un bolsillo con ese nombre en este perfil. Pídele al usuario el nombre exacto del bolsillo. AMARA no puede crear bolsillos.",
+      };
+    }
+
+    if (monto > Number(bolsillo.saldo)) {
+      return {
+        success: false,
+        error: `El bolsillo "${bolsillo.nombre}" solo tiene ${Number(
+          bolsillo.saldo
+        )}. Dile al usuario cuánto hay en el bolsillo y que no alcanza para sacar ese monto.`,
+      };
+    }
+
+    await supabaseServer.from("transferencias_bolsillos").insert({
+      bolsillo_id: bolsillo.id,
+      tipo: "retiro",
+      monto,
+      descripcion: `Retiro de ${bolsillo.nombre}`,
+      user_id: context.userId,
+    });
+
+    await supabaseServer
+      .from("bolsillos")
+      .update({ saldo: Number(bolsillo.saldo) - monto })
+      .eq("id", bolsillo.id);
+
+    return {
+      success: true,
+      bolsillo: bolsillo.nombre,
+      saldo_nuevo: Number(bolsillo.saldo) - monto,
+    };
+  }
+
   // --- Cierre de mes (mismo modelo que AutoClosureModal de la app) ---
 
   // ¿Quedó el mes anterior sin cerrar para este perfil? Devuelve null si no hay

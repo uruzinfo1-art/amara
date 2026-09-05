@@ -103,6 +103,22 @@ const tools = [
   },
   {
     type: "function",
+    name: "sacar_de_bolsillo",
+    description: "Saca dinero de un bolsillo de ahorro y lo devuelve a la cuenta. Úsalo para 'saca X del bolsillo Y', 'retira X de Y'.",
+    strict: false,
+    parameters: {
+      type: "object",
+      properties: {
+        monto: { type: "number", description: "Monto a sacar, en pesos" },
+        bolsillo: { type: "string", description: "Nombre del bolsillo, EXACTO como aparece en BOLSILLOS DE ESTE PERFIL" },
+        profile_id: { type: "number", description: "id del perfil (de PERFILES DE ESTE USUARIO)" },
+      },
+      required: ["monto", "bolsillo"],
+      additionalProperties: false,
+    },
+  },
+  {
+    type: "function",
     name: "cerrar_mes",
     description: "Cierra el mes anterior con la decisión del usuario sobre el dinero restante. Úsalo SOLO cuando exista un CIERRE DE MES PENDIENTE y el usuario ya haya elegido qué hacer.",
     strict: false,
@@ -217,6 +233,7 @@ Cuando el usuario elija, llama a cerrar_mes con la acción ("guardar" / "pasar" 
 - Cuando el usuario diga "guarda X en el bolsillo Y", "aparta X para Y", "mete X al ahorro de Y", resume el monto y el bolsillo, pide confirmación una vez, y al confirmar llama a guardar_en_bolsillo.
 - El bolsillo DEBE estar en BOLSILLOS DE ESTE PERFIL. Si el nombre no está, pregúntale al usuario cuál de la lista es. Nunca inventes ni ofrezcas crear un bolsillo (eso solo se hace en la app).
 - Si guardar_en_bolsillo responde que no alcanza, dile al usuario cuánto tiene disponible y que no alcanza; no reintentes con otro monto sin que él lo pida.
+- Para "saca X del bolsillo Y" / "retira X de Y" usa sacar_de_bolsillo (mismas reglas: el bolsillo debe estar en la lista, confirma antes, y si el bolsillo no tiene saldo suficiente avísale).
 
 CÓMO CONSULTAR GASTOS Y RESUMEN:
 - Para gastos usa consultar_gastos. Para "¿cómo voy?", "¿cuánto gané?", "¿cuánto tengo disponible?" usa consultar_resumen.
@@ -282,6 +299,11 @@ ${JSON.stringify(AMARA_AI)}
         } else if (item.name === "guardar_en_bolsillo") {
           result = await finance.execute(
             { intent: "save_to_pocket", amount: args.monto, pocket: args.bolsillo, date: args.fecha, profileId: args.profile_id ?? context.profileId },
+            context
+          );
+        } else if (item.name === "sacar_de_bolsillo") {
+          result = await finance.execute(
+            { intent: "withdraw_from_pocket", amount: args.monto, pocket: args.bolsillo, profileId: args.profile_id ?? context.profileId },
             context
           );
         } else if (item.name === "cerrar_mes") {

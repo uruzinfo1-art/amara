@@ -470,6 +470,30 @@ async function test() {
       bolsilloInexistente.success === false
     );
 
+    // Sacar de bolsillo (el bolsillo tiene $50.000 del guardado de arriba).
+    const sacado: any = await movementService.withdrawFromPocket(
+      { amount: 20000, pocket: "bolsillotest", profileId: perfilCasa.id },
+      context
+    );
+    const { data: bolTrasSacar } = await supabase
+      .from("bolsillos")
+      .select("saldo")
+      .eq("id", bolsilloTmp.id)
+      .single();
+    check(
+      "Bolsillo - sacar $20.000 baja el saldo",
+      sacado.success === true && Number(bolTrasSacar?.saldo) === 30000
+    );
+
+    const sacarDeMas: any = await movementService.withdrawFromPocket(
+      { amount: 999999, pocket: "bolsillotest", profileId: perfilCasa.id },
+      context
+    );
+    check(
+      "Bolsillo - sacar más de lo que hay se rechaza",
+      sacarDeMas.success === false
+    );
+
     // === Cierre de mes ===
     const { data: perfilCierre } = await supabase
       .from("profiles")

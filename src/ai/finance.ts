@@ -29,6 +29,10 @@ export class Finance {
 
         return await movementService.saveToPocket(data, context);
 
+      case "withdraw_from_pocket":
+
+        return await movementService.withdrawFromPocket(data, context);
+
       case "close_month":
 
         return await movementService.closeMonth(data, context);

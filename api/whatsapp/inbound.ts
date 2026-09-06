@@ -2,7 +2,8 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { assistant } from "../../src/ai/assistant.js";
 import { createClient } from "@supabase/supabase-js";
 import { waitUntil } from "@vercel/functions";
-import { enviarWhatsApp } from "../../src/lib/whatsapp.js";
+import { enviarWhatsApp, descargarMedia } from "../../src/lib/whatsapp.js";
+import { openai } from "../../src/lib/openai.js";
 
 const supabaseServer = createClient(
   process.env.SUPABASE_URL!,
@@ -14,9 +15,26 @@ const WHATSAPP_VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 // Vercel: dale hasta 60s a esta función (en vez de los 10s por defecto del plan free).
 export const maxDuration = 60;
 
+// Transcribe una nota de voz de WhatsApp (ogg/opus) a texto. No se guarda nada.
+async function transcribirAudio(base64: string, mimeType: string): Promise<string> {
+  const bytes = Buffer.from(base64, "base64");
+  const ext = mimeType.includes("mpeg")
+    ? "mp3"
+    : mimeType.includes("mp4") || mimeType.includes("m4a")
+    ? "m4a"
+    : "ogg";
+  const file = new File([bytes], `audio.${ext}`, { type: mimeType || "audio/ogg" });
+  const tr: any = await openai.audio.transcriptions.create({
+    file: file as any,
+    model: "whisper-1",
+    language: "es",
+  } as any);
+  return tr?.text || "";
+}
+
 // Trabajo pesado: corre en segundo plano DESPUÉS de responderle a Meta,
 // para que el webhook conteste rápido y Meta no reintente ni desactive la URL.
-async function procesarMensaje(from: string, text: string) {
+async function procesarMensaje(from: string, msg: any) {
   try {
     // Limpieza oportunista de huellas viejas (>3 días) y códigos vencidos.
     const hace3dias = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
@@ -29,8 +47,13 @@ async function procesarMensaje(from: string, text: string) {
       .delete()
       .lt("expires_at", new Date().toISOString());
 
-    // ¿El mensaje es un código de vinculación? Ej: "AMARA 7K3P9Q"
-    const mCodigo = text.trim().match(/^amara[\s:_-]*([a-z0-9]{6})$/i);
+    const tipo: string = msg?.type || "text";
+    const texto: string | undefined = msg?.text?.body;
+
+    // ¿El mensaje (de texto) es un código de vinculación? Ej: "AMARA 7K3P9Q"
+    const mCodigo = texto
+      ? texto.trim().match(/^amara[\s:_-]*([a-z0-9]{6})$/i)
+      : null;
     const codigo = mCodigo ? mCodigo[1].toUpperCase() : null;
 
     const { data: whatsappContact, error: whatsappContactError } =
@@ -98,14 +121,107 @@ async function procesarMensaje(from: string, text: string) {
 
     const userId = whatsappContact.user_id;
     const profileId = whatsappContact.profile_id;
-    console.log("USUARIO AMARA:", userId, "PERFIL AMARA:", profileId);
+    console.log("USUARIO AMARA:", userId, "PERFIL AMARA:", profileId, "TIPO:", tipo);
 
     if (!profileId) {
       console.log("El WhatsApp no tiene un perfil de AMARA asignado");
       return;
     }
 
-    const respuesta = await assistant.processMessage(text, { userId, profileId });
+    // --- Armar la entrada para la IA según el tipo de mensaje ---
+    let mensajeParaIA = "";
+    let media:
+      | { imageDataUrl?: string; fileDataUrl?: string; filename?: string }
+      | undefined;
+
+    const avisoGrande = (que: string) =>
+      `${que} es muy pesado/a. Mándalo más liviano o escríbeme el dato.`;
+
+    if (tipo === "text") {
+      mensajeParaIA = (texto || "").trim();
+      if (!mensajeParaIA) return;
+    } else if (tipo === "image") {
+      try {
+        const m = await descargarMedia(msg.image.id);
+        media = { imageDataUrl: `data:${m.mimeType};base64,${m.base64}` };
+        mensajeParaIA =
+          (msg.image.caption && String(msg.image.caption).trim()) ||
+          "Registra el gasto de este recibo.";
+      } catch (e: any) {
+        await enviarWhatsApp(
+          from,
+          e?.message === "ARCHIVO_MUY_GRANDE"
+            ? avisoGrande("Esa imagen")
+            : "No pude abrir la imagen. Intenta de nuevo o escríbeme el gasto."
+        );
+        return;
+      }
+    } else if (tipo === "document") {
+      const mime: string = msg.document?.mime_type || "";
+      if (mime.startsWith("image/") || mime === "application/pdf") {
+        try {
+          const m = await descargarMedia(msg.document.id);
+          if (mime === "application/pdf") {
+            media = {
+              fileDataUrl: `data:application/pdf;base64,${m.base64}`,
+              filename: msg.document.filename || "recibo.pdf",
+            };
+          } else {
+            media = { imageDataUrl: `data:${m.mimeType};base64,${m.base64}` };
+          }
+          mensajeParaIA =
+            (msg.document.caption && String(msg.document.caption).trim()) ||
+            "Registra el gasto de este recibo.";
+        } catch (e: any) {
+          await enviarWhatsApp(
+            from,
+            e?.message === "ARCHIVO_MUY_GRANDE"
+              ? avisoGrande("Ese archivo")
+              : "No pude abrir el archivo. Escríbeme el gasto."
+          );
+          return;
+        }
+      } else {
+        await enviarWhatsApp(
+          from,
+          "Por ahora solo leo fotos de recibos y PDF. Escríbeme el gasto o mándame una foto."
+        );
+        return;
+      }
+    } else if (tipo === "audio") {
+      try {
+        const m = await descargarMedia(msg.audio.id);
+        mensajeParaIA = (await transcribirAudio(m.base64, m.mimeType)).trim();
+        console.log("TRANSCRIPCIÓN:", mensajeParaIA);
+        if (!mensajeParaIA) {
+          await enviarWhatsApp(
+            from,
+            "No entendí la nota de voz. ¿Me la repites o me lo escribes?"
+          );
+          return;
+        }
+      } catch (e: any) {
+        await enviarWhatsApp(
+          from,
+          e?.message === "ARCHIVO_MUY_GRANDE"
+            ? avisoGrande("Esa nota de voz")
+            : "No pude procesar la nota de voz. Intenta de nuevo o escríbeme."
+        );
+        return;
+      }
+    } else {
+      await enviarWhatsApp(
+        from,
+        "Por ahora entiendo texto, fotos y PDF de recibos, y notas de voz."
+      );
+      return;
+    }
+
+    const respuesta = await assistant.processMessage(
+      mensajeParaIA,
+      { userId, profileId },
+      media
+    );
     console.log("RESPUESTA AMARA:", respuesta);
 
     const textoRespuesta =
@@ -141,8 +257,6 @@ export default async function handler(
   if (req.method === "POST") {
     console.log("WhatsApp evento recibido:", JSON.stringify(req.body));
 
-    // Meta anida todo. Un webhook puede traer un mensaje entrante o un aviso
-    // de estado (entregado/leído). Tomamos el primer mensaje entrante, si lo hay.
     const value = req.body?.entry?.[0]?.changes?.[0]?.value;
     const msg = value?.messages?.[0];
 
@@ -152,23 +266,15 @@ export default async function handler(
     }
 
     const from = msg.from; // número del cliente, solo dígitos, sin "+"
-    const text = msg.text?.body;
-
-    console.log("FROM:", from, "MENSAJE:", text);
+    console.log("FROM:", from, "TIPO:", msg.type);
 
     if (!from) {
       return res.status(200).json({ received: true, ignored: "no_from" });
     }
 
-    // Mensajes sin texto (imagen, audio, ubicación, etc.): nada que procesar.
-    if (!text || !String(text).trim()) {
-      console.log("Mensaje sin texto, ignorado");
-      return res.status(200).json({ received: true, ignored: "no_text" });
-    }
-
     // --- Anti-duplicados: huella única por mensaje (Meta reintenta si tardamos) ---
     const fingerprint = String(
-      msg.id ?? `${from}|${text}|${msg.timestamp ?? ""}`
+      msg.id ?? `${from}|${msg.type}|${msg.timestamp ?? ""}`
     );
 
     const { data: yaVisto } = await supabaseServer
@@ -197,7 +303,7 @@ export default async function handler(
     // Le respondemos YA a Meta para que no reintente; el resto va en segundo plano.
     res.status(200).json({ received: true });
 
-    const trabajo = procesarMensaje(String(from), String(text));
+    const trabajo = procesarMensaje(String(from), msg);
     try {
       waitUntil(trabajo);
     } catch {

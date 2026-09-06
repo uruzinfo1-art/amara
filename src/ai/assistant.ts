@@ -135,7 +135,11 @@ const tools = [
 ];
 
 export class Assistant {
-  async processMessage(message: string, context: AssistantContext) {
+  async processMessage(
+    message: string,
+    context: AssistantContext,
+    media?: { imageDataUrl?: string; fileDataUrl?: string; filename?: string }
+  ) {
     const { data: historial } = await supabaseServer
       .from("mensajes")
       .select("role, content")
@@ -220,6 +224,7 @@ CÓMO REGISTRAR UN MOVIMIENTO:
 6. Si una herramienta devuelve "need_profile", pregúntale al usuario en cuál de los perfiles de la lista registrar el movimiento y vuelve a llamar la herramienta con "profile_id". Nunca inventes un id de perfil.
 7. Fecha del movimiento: si el usuario dice cuándo ocurrió ("ayer", "el 3", "el lunes pasado"), calcula la fecha en formato AAAA-MM-DD y pásala en "fecha". Si el día es ambiguo (ej. "el 3"), usa la fecha más reciente que YA haya pasado. Si el usuario no menciona ninguna fecha, no envíes "fecha".
 8. Socios: si el usuario dice que un socio hizo el movimiento ("Juan puso...", "aporte de María") y ese nombre está en SOCIOS DE ESTE PERFIL, pásalo en "socio" con el nombre EXACTO de la lista. Si el nombre no está en la lista, no lo inventes: registra sin socio o pregunta. Nunca ofrezcas crear un socio ni un perfil: eso solo se hace desde la app.
+9. Si el usuario manda una FOTO o un PDF de un recibo/factura/tirilla: léelo, identifica el TOTAL pagado y el nombre del comercio (y la fecha si se ve), y sigue el flujo normal (resume en una frase y pide confirmación una vez). Si no puedes leer el monto con claridad, dilo y pídele que lo escriba. Trátalo como un gasto salvo que sea claramente un comprobante de ingreso.
 
 ${cierre ? `CIERRE DE MES PENDIENTE:
 Terminó ${cierre.mesTerminado} y quedó sin cerrar. Disponible restante de ese mes: $${cierre.disponible}.
@@ -250,12 +255,30 @@ CONFIGURACIÓN DE AMARA:
 ${JSON.stringify(AMARA_AI)}
 `;
 
+    // Turno del usuario: texto solo, o texto + imagen/PDF (recibo).
+    let userContent: any = message;
+    if (media?.imageDataUrl) {
+      userContent = [
+        { type: "input_text", text: message },
+        { type: "input_image", image_url: media.imageDataUrl },
+      ];
+    } else if (media?.fileDataUrl) {
+      userContent = [
+        { type: "input_text", text: message },
+        {
+          type: "input_file",
+          filename: media.filename || "documento.pdf",
+          file_data: media.fileDataUrl,
+        },
+      ];
+    }
+
     let response = await openai.responses.create({
       model: "gpt-5-mini",
       instructions,
       input: [
         ...historialOrdenado.map((m: any) => ({ role: m.role, content: m.content })),
-        { role: "user", content: message },
+        { role: "user", content: userContent },
       ],
             tools,
     } as any);

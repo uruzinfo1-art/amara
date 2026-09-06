@@ -38,3 +38,42 @@ export async function enviarWhatsApp(to: string, body: string, intentos = 3) {
     throw new Error(`Meta rechazó el envío (${resp.status}): ${detalle}`);
   }
 }
+
+// Descarga un archivo enviado por WhatsApp (foto, PDF, nota de voz) a memoria.
+// Devuelve los bytes en base64 + el tipo. No se guarda en ningún lado.
+const MAX_MEDIA_BYTES = 10 * 1024 * 1024; // 10 MB
+
+export async function descargarMedia(
+  mediaId: string
+): Promise<{ base64: string; mimeType: string; bytes: number }> {
+  const token = process.env.WHATSAPP_TOKEN;
+
+  // 1) Metadatos: URL temporal + tipo + tamaño.
+  const metaResp = await fetch(
+    `https://graph.facebook.com/${META_API_VERSION}/${mediaId}`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!metaResp.ok) {
+    throw new Error(`No se pudo leer el medio (${metaResp.status})`);
+  }
+  const meta: any = await metaResp.json();
+  const mimeType: string = meta.mime_type || "application/octet-stream";
+  const size = Number(meta.file_size || 0);
+  if (size && size > MAX_MEDIA_BYTES) {
+    throw new Error("ARCHIVO_MUY_GRANDE");
+  }
+
+  // 2) Descargar los bytes (misma cabecera de token).
+  const fileResp = await fetch(meta.url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!fileResp.ok) {
+    throw new Error(`No se pudo descargar el medio (${fileResp.status})`);
+  }
+  const buf = Buffer.from(await fileResp.arrayBuffer());
+  if (buf.byteLength > MAX_MEDIA_BYTES) {
+    throw new Error("ARCHIVO_MUY_GRANDE");
+  }
+
+  return { base64: buf.toString("base64"), mimeType, bytes: buf.byteLength };
+}

@@ -70,20 +70,6 @@ const tutorialType = params.get("type") || "home";
           indicatorRight: 1
       },
       {
-    image: perfilesImg,
-    title: 'Perfiles',
-    subtitle: 'Administra varios perfiles',
-    text: 'Desde aquí puedes cambiar entre tus perfiles personales y de negocio o crear uno nuevo. Cada perfil mantiene su información completamente independiente.'
-},
-
-{
-    image: perfil1Img,
-    title: 'Nuevo perfil',
-    subtitle: 'Escoge el tipo adecuado',
-    text: 'AMARA permite crear perfiles para Hogar, Negocio de Flujo Continuo o Negocio de Ciclo Productivo. Elige el que mejor se adapte a la forma en que administras tu dinero.'
-},
-
-      {
         image: gastosFijosImg,
         title: 'Gastos Fijos',
         subtitle: 'Pagos que se repiten cada mes',
@@ -318,9 +304,9 @@ if (tutorialType === "continuo") {
 
     {
       image: continuoPysImg,
-      title: "Pérdidas y Ganancias",
-      subtitle: "Resultado financiero",
-      text: "Aquí encontrarás todos los productos y servicios que ofrece tu negocio. Desde esta sección podrás administrarlos, editarlos y mantener actualizada la información para registrar correctamente tus ventas y movimientos."
+      title: "Productos y Servicios",
+      subtitle: "Tu catálogo",
+      text: "Aquí administras todo lo que ofrece tu negocio. Manténlo actualizado para registrar correctamente tus ventas y llevar bien el inventario."
     },
 
     {
@@ -380,7 +366,7 @@ if (tutorialType === "continuo") {
       )}
 
       <div className={`absolute left-8 right-8 z-10 bg-black/80 rounded-3xl p-5 ${
-        [3,6,7,8,9,10,11,12,13,14,15].includes(step)? 'top-12' : 'bottom-24'
+        [3,6,7,8,9,10,11,12,13].includes(step)? 'top-12' : 'bottom-24'
       }`}>
 
         <span className="text-[#00E676] text-xs uppercase tracking-[0.2em] font-bold">
